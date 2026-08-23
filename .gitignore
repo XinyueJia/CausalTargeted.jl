@@ -6,6 +6,7 @@ Manifest.toml
 # Documentation
 docs/build/
 docs/site/
+docs/out/
 docs/stress/stress_validation.html
 docs/stress/_freeze/
 docs/stress/.quarto/
