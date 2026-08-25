@@ -109,12 +109,11 @@ function _crossfit_propensity_folds(
 end
 
 """
-    _aipw_influence_matrix(df, treatment, outcomes, adj_covars, fold_sets, g_hat, ipcw_w;
-                           learners, rng) -> (psi, estimates)
+    _aipw_influence_matrix(...) -> (psi, estimates, psi_μ1, μ1, psi_μ0, μ0)
 
 Cross-fitted AIPW influence curves for each outcome (columns), sharing folds and
-propensity `g_hat`. Returns uncentred plug-in+weighting curves `psi` (`n × T`)
-and Hajek means `estimates`.
+propensity `g_hat`. Returns uncentred plug-in+weighting curves for ``τ``,
+``μ(1)``, and ``μ(0)``, with Hajek means.
 """
 function _aipw_influence_matrix(
     df::DataFrame,
@@ -146,6 +145,8 @@ function _aipw_influence_matrix(
     H0 = -1.0 ./ (1.0 .- g)
     covariate_schema = fit_covariate_schema(df, adj_covars)
     psi = zeros(n, T)
+    psi_μ1 = zeros(n, T)
+    psi_μ0 = zeros(n, T)
 
     for (j, outcome) in enumerate(outcomes)
         y = Float64.(df[!, outcome])
@@ -183,15 +184,24 @@ function _aipw_influence_matrix(
                 Q1 = Q1 .+ ε .* H1[test_idx]
                 Q0 = Q0 .+ ε .* H0[test_idx]
             end
-            psi[test_idx, j] = Ht .* (y[test_idx] .- Q_obs) .+ (Q1 .- Q0)
+            resid = y[test_idx] .- Q_obs
+            psi[test_idx, j] = Ht .* resid .+ (Q1 .- Q0)
+            # μ(1): A/g * resid + Q1; μ(0): (1-A)/(1-g) * resid + Q0
+            # H1 = 1/g, H0 = -1/(1-g) ⇒ (1-A)/(1-g) = -(1-A)*H0
+            psi_μ1[test_idx, j] = (a[test_idx] .* H1[test_idx]) .* resid .+ Q1
+            psi_μ0[test_idx, j] = ((1 .- a[test_idx]) .* (-H0[test_idx])) .* resid .+ Q0
         end
     end
 
     estimates = Vector{Float64}(undef, T)
+    μ1 = Vector{Float64}(undef, T)
+    μ0 = Vector{Float64}(undef, T)
     for j in 1:T
         estimates[j] = transport_weighted_mean(psi[:, j], ipcw_w)
+        μ1[j] = transport_weighted_mean(psi_μ1[:, j], ipcw_w)
+        μ0[j] = transport_weighted_mean(psi_μ0[:, j], ipcw_w)
     end
-    return psi, estimates
+    return psi, estimates, psi_μ1, μ1, psi_μ0, μ0
 end
 
 """
@@ -450,11 +460,14 @@ function run_repeated_outcome_msm(
         df_clean, treatment, adj_covars, fold_sets;
         learners = learners_trt, rng = rng,
     )
-    psi, estimates = _aipw_influence_matrix(
+    psi, estimates, psi_μ1, μ1, psi_μ0, μ0 = _aipw_influence_matrix(
         df_clean, treatment, outs, adj_covars, fold_sets, g_hat, ipcw_w;
         learners = learners, rng = rng, estimator = estimator,
     )
     Σ, se, ic = _msm_covariance(psi, estimates, ipcw_w)
+    # Keep μ components available to parametric MSM (not exported on the public NT).
+    Σ_μ1, _, ic_μ1 = _msm_covariance(psi_μ1, μ1, ipcw_w)
+    Σ_μ0, _, ic_μ0 = _msm_covariance(psi_μ0, μ0, ipcw_w)
 
     min_g = minimum(g_hat)
     max_g = maximum(g_hat)
@@ -470,6 +483,12 @@ function run_repeated_outcome_msm(
         se = se,
         covariance = Σ,
         ic = ic,
+        mu1 = μ1,
+        mu0 = μ0,
+        covariance_mu1 = Σ_μ1,
+        covariance_mu0 = Σ_μ0,
+        ic_mu1 = ic_μ1,
+        ic_mu0 = ic_μ0,
         outcomes = outs,
         n = n,
         positivity = positivity,
@@ -497,13 +516,13 @@ Wald inference for the linear form ``c^\\top\\tau`` with
 ``\\mathrm{Var}=c^\\top\\Sigma c``.
 """
 function msm_contrast(result::NamedTuple, c::AbstractVector{<:Real})
-    τ = result.estimates
+    θ = haskey(result, :coefficients) ? result.coefficients : result.estimates
     Σ = result.covariance
-    length(c) == length(τ) || throw(ArgumentError(
-        "contrast length $(length(c)) must match number of outcomes $(length(τ))",
+    length(c) == length(θ) || throw(ArgumentError(
+        "contrast length $(length(c)) must match parameter length $(length(θ))",
     ))
     c64 = Float64.(c)
-    est = dot(c64, τ)
+    est = dot(c64, θ)
     var = dot(c64, Σ * c64)
     var < 0 && var > -1e-12 && (var = 0.0)
     var >= 0 || throw(ArgumentError("contrast variance is negative ($(var)); check Σ"))

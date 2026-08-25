@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.12] — 2026-08-25
+
+### Added
+
+- **Parametric treatment×time MSM:** `ParametricRepeatedOutcomeMSM`,
+  `run_parametric_repeated_msm` (GLS projection of unstructured IF estimates;
+  designs `:constant`, `:linear_time`, `:factor_time`, custom ``τ`` matrices,
+  `:mean_treatment_time` with `target=:mean`). Engine `:parametric_msm`.
+  Synthetic gate `simulate_mean_treatment_time_msm`. Coverage:
+  `test/test_parametric_msm.jl`.
+
+## [0.3.11] — 2026-08-25
+
 ### Added
 
 - **Repeated-outcome MSM (point treatment):** `RepeatedOutcomeMSM`,
@@ -19,8 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   untargeted AIPW. Missingness uses a shared complete-profile ``R`` (outcomes are
   not imputed). Coverage: `test/test_repeated_outcome_msm.jl`,
   `test/test_missing_strategies_matrix.jl`, recovery scenario
-  `:repeated_outcome_ate`. Parametric treatment×time MSM (full `tmleMSM` parity)
-  deferred.
+  `:repeated_outcome_ate`.
 
 - `MissingDataResult` from `handle_missing_data` (destructuring of
   `data, weights, extra` unchanged) with `meta` recording `strategy`, miss

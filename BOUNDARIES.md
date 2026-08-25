@@ -8,7 +8,11 @@
 - LMTP / sequential LMTP / thin survival LMTP, δ-grids, planning, parallel execution, run metadata
 - **Repeated-outcome MSM** (`RepeatedOutcomeMSM` / `run_repeated_outcome_msm`):
   binary point treatment, several outcomes on the same units, joint IF
-  covariance for profile contrasts (unstructured ``τ(t)``; parametric MSM deferred)
+  covariance for unstructured ``τ(t)``
+- **Parametric treatment×time MSM** (`ParametricRepeatedOutcomeMSM` /
+  `run_parametric_repeated_msm`): GLS projection onto `:constant`,
+  `:linear_time`, `:factor_time`, custom ``τ`` designs, or
+  `:mean_treatment_time` (`target=:mean`)
 - Sequential factor recodes via `SequentialPolicy.policies` (`DiscreteTreatmentPolicy`); mixed continuous/discrete `A_t` rejected
 - Sequential certificate bridges (`plan_sequential`, `sequential_spec_from_identification`)
 - Survival / event-time path (`SurvivalPolicy`, `run_survival_lmtp`; competing risks and factor `A_t` recodes deferred)
@@ -53,8 +57,6 @@
 
 ## Out of scope (for now)
 
-- Parametric treatment×time MSM design matrices (Rosenblum–vdL `tmleMSM` full parity);
-  unstructured ``τ(t)`` with joint ``Σ`` ships as `:repeated_msm`
 - Mixed continuous/discrete sequential `A_t` (rejected, not a planned path)
 - Survival-time factor recodes (`SurvivalPolicy` + `policies`)
 - Nested discrete Super Learner as the LMTP classifier default (opt-in `nested_sl_candidate` only)

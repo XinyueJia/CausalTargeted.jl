@@ -113,7 +113,7 @@ function plan_mtp(
     !cert.result.identifiable && @warn "Effect may not be identifiable" trt out
 
     engine = normalize_engine(estimand_engine(estimand))
-    n_delta = if engine in (:discrete_lmtp, :repeated_msm)
+    n_delta = if engine in (:discrete_lmtp, :repeated_msm, :parametric_msm)
         1
     else
         count(d -> !isapprox(d, 0; atol = 1e-12), deltas)
@@ -121,7 +121,7 @@ function plan_mtp(
 
     fits_per_delta = if engine in (:lmtp, :discrete_lmtp)
         folds * 2
-    elseif engine == :repeated_msm
+    elseif engine in (:repeated_msm, :parametric_msm)
         # Shared propensity + one outcome regression per Y_t, per fold
         n_out = length(estimand.outcomes)
         folds * (1 + n_out)
@@ -160,6 +160,8 @@ function _estimand_fields(estimand::Estimand)
     elseif estimand isa DiscreteInterventionalMean
         return estimand.trt, estimand.outcome, estimand.adjustment, Symbol[]
     elseif estimand isa RepeatedOutcomeMSM
+        return estimand.trt, first(estimand.outcomes), estimand.adjustment, Symbol[]
+    elseif estimand isa ParametricRepeatedOutcomeMSM
         return estimand.trt, first(estimand.outcomes), estimand.adjustment, Symbol[]
     end
     error("Unknown estimand $(typeof(estimand))")

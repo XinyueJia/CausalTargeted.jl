@@ -204,6 +204,41 @@ function execute_estimand(
         metadata!(df_out, "causal_targeted_msm_covariance", res.covariance; style = :note)
         attach_missingness_metadata!(df_out, res.missingness)
         df_out
+    elseif estimand isa ParametricRepeatedOutcomeMSM
+        allowed = (
+            :folds, :rng, :learners, :learners_outcome, :learners_trt,
+            :handle_missing, :estimator,
+        )
+        msm_kw = (; (p.first => p.second for p in pairs(kwargs) if p.first in allowed)...)
+        learners = get(msm_kw, :learners,
+            get(msm_kw, :learners_outcome, DEFAULT_SL_LEARNERS))
+        res = run_parametric_repeated_msm(
+            data, estimand.trt, estimand.outcomes;
+            baseline = estimand.adjustment,
+            design = estimand.design,
+            target = estimand.target,
+            learners = learners,
+            (; (p.first => p.second for p in pairs(msm_kw) if p.first in (
+                :folds, :rng, :learners_trt, :handle_missing, :estimator,
+            ))...)...,
+        )
+        z = 1.96
+        p = length(res.coefficients)
+        df_out = DataFrame(
+            delta = fill(NaN, p),
+            estimand = fill("MSM", p),
+            coefficient = String.(res.coef_names),
+            est = res.coefficients,
+            se = res.se,
+            lwr = res.coefficients .- z .* res.se,
+            upr = res.coefficients .+ z .* res.se,
+            positivity_ok = fill(res.positivity.ok, p),
+            stratum = fill("full_population", p),
+        )
+        metadata!(df_out, "causal_targeted_msm_covariance", res.covariance; style = :note)
+        metadata!(df_out, "causal_targeted_fitted_tau", res.fitted_tau; style = :note)
+        attach_missingness_metadata!(df_out, res.missingness)
+        df_out
     else
         error("Unsupported estimand type $(typeof(estimand))")
     end
@@ -215,7 +250,8 @@ function execute_estimand(
                 p isa DiscreteTreatmentPolicy || !isempty(p)
             end
         )
-        density_ratio_meta = if estimand isa RepeatedOutcomeMSM
+        density_ratio_meta = if estimand isa RepeatedOutcomeMSM ||
+                estimand isa ParametricRepeatedOutcomeMSM
             :propensity
         elseif estimand isa DiscreteInterventionalMean || seq_factor
             get(kwargs, :density_ratio, :classification)

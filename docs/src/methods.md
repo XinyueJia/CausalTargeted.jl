@@ -20,7 +20,8 @@ treatment policies* (MTPs) shift or otherwise transform the *natural* value of t
 |-------|-----------------|------------------------|
 | Stochastic / population interventions | Díaz & van der Laan (2012), *Biometrics* | `ShiftPolicy`, additive / multiplicative / threshold policies |
 | Longitudinal MTPs (LMTP): ID, EIF, TMLE & sequential DR | Díaz, Williams, Hoffman & Schenck (2023), *JASA* | `run_lmtp_grid`, `lmtp_tmle_contrast`, `LongitudinalPolicy` |
-| Point treatment, repeated outcomes (joint ``Σ``) | Rosenblum & van der Laan (2010), *IJB* | `run_repeated_outcome_msm`, `RepeatedOutcomeMSM`, `msm_contrast` |
+| Point treatment, repeated outcomes (joint ``Σ``) | Rosenblum & van der Laan (2010), *IJB* | `run_repeated_outcome_msm`, `msm_contrast` |
+| Parametric treatment×time MSM | Rosenblum & van der Laan (2010), *IJB* | `run_parametric_repeated_msm`, `ParametricRepeatedOutcomeMSM` |
 | Software reference (R) | Williams & Díaz (2023), *Observational Studies* | Conceptual parity, not API identity |
 | Discrete-time survival / event-time LMTP | Díaz, Hoffman & Hejazi (2024), *Lifetime Data Analysis* | `SurvivalPolicy`, `run_survival_lmtp` (competing risks deferred) |
 
@@ -84,8 +85,11 @@ never imputed. This is the point-treatment / multi-outcome setting
 not sequential LMTP (time-varying ``A_t``). Pair with
 `identify_repeated_outcomes` (CausalTargeted helper over CausalDynamics
 `TotalEffectQuery`) when each ``Y_t`` shares a backdoor set.
-Parametric treatment×time MSMs are deferred. Synthetic gate:
-`simulate_repeated_outcome_ate`.
+Parametric MSMs project that profile (or stacked means ``μ(t,a)``) onto a
+design with GLS: `run_parametric_repeated_msm` / `ParametricRepeatedOutcomeMSM`
+(`:constant`, `:linear_time`, `:factor_time`, custom matrices, or
+`:mean_treatment_time` with `target=:mean`). Synthetic gates:
+`simulate_repeated_outcome_ate`, `simulate_mean_treatment_time_msm`.
 
 **Transport weights.** `domain_transport_weights` / `transport_weighted_mean` provide
 marginal IPTW-style domain reweighting after a CausalDynamics `TransportQuery`

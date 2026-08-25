@@ -88,6 +88,7 @@ c = msm_contrast(res, 3, 2)
 |------|--------------|--------------------|
 | LMTP / MTP δ-grids | Yes | R `lmtp`, Python Ananke |
 | Point treatment, repeated ``Y_t`` + joint ``Σ`` | Yes (`run_repeated_outcome_msm`) | R `tmle::tmleMSM` |
+| Parametric treatment×time MSM | Yes (`run_parametric_repeated_msm`) | R `tmle::tmleMSM` designs |
 | Interventional mediation (TE/NDE/NIE) | Yes | R `crumble` / tmle3 |
 | Consumes upstream ID certificate | **Unique** | Partial (separate packages) |
 | Small-*n* Super Learner profiles | Yes | sl3 + glue |

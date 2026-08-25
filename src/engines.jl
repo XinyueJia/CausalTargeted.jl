@@ -8,6 +8,7 @@ Public engines:
 - `:sequential_lmtp` — multi-time sequential LMTP (numeric shift or factor `policies`)
 - `:survival_lmtp` — discrete-time event-time / survival LMTP (competing risks deferred)
 - `:repeated_msm` — binary point treatment, repeated outcomes, joint IF covariance
+- `:parametric_msm` — GLS projection of repeated-outcome IF estimates onto a treatment×time design
 
 Legacy alias: `:crumble` → `:mediation` (name taken from the R `crumble` package;
 Julia APIs prefer descriptive `mediation_*` names).

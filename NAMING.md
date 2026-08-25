@@ -22,6 +22,7 @@ Prefer **method names**, not R package nicknames:
 | `:sequential_lmtp` | `run_sequential_lmtp` | Multi-time sequential regression (numeric shift or factor `policies`) |
 | `:survival_lmtp` | `run_survival_lmtp`, `SurvivalPolicy` | Discrete-time event-time / survival LMTP |
 | `:repeated_msm` | `run_repeated_outcome_msm`, `RepeatedOutcomeMSM`, `msm_contrast` | Binary point treatment, repeated outcomes, joint IF ``Σ`` |
+| `:parametric_msm` | `run_parametric_repeated_msm`, `ParametricRepeatedOutcomeMSM` | GLS projection onto treatment×time MSM designs |
 | `:scalar` | `ScalarMediation` | Single-contrast mediation helpers |
 
 ## Legacy R concordance (`crumble`)

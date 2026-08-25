@@ -13,7 +13,7 @@ package docs stay aligned. Prefer DOIs when citing externally.
 
 - Díaz, I., Hoffman, K. L., & Hejazi, N. S. (2024). Causal survival analysis under competing risks using longitudinal modified treatment policies. *Lifetime Data Analysis*, *30*, 213–236. [doi:10.1007/s10985-023-09606-7](https://doi.org/10.1007/s10985-023-09606-7) — key `diaz2024survival` (`SurvivalPolicy` / `run_survival_lmtp`; competing risks deferred)
 
-- Rosenblum, M., & van der Laan, M. J. (2010). Targeted Maximum Likelihood Estimation of the Parameter of a Marginal Structural Model. *The International Journal of Biostatistics*, *6*(2). [doi:10.2202/1557-4679.1238](https://doi.org/10.2202/1557-4679.1238) — key `rosenblum2010msm` (`run_repeated_outcome_msm` / unstructured ``τ(t)``; parametric MSM deferred)
+- Rosenblum, M., & van der Laan, M. J. (2010). Targeted Maximum Likelihood Estimation of the Parameter of a Marginal Structural Model. *The International Journal of Biostatistics*, *6*(2). [doi:10.2202/1557-4679.1238](https://doi.org/10.2202/1557-4679.1238) — key `rosenblum2010msm` (`run_repeated_outcome_msm` / `run_parametric_repeated_msm`)
 
 ## Targeted learning and Super Learner
 

@@ -44,6 +44,7 @@ include("imputation/posterior.jl")
 include("lmtp_grid.jl")
 include("gcomp.jl")
 include("repeated_outcome_msm.jl")
+include("parametric_msm.jl")
 include("did.jl")
 include("sensitivity.jl")
 include("discovery_sensitivity.jl")
@@ -65,6 +66,7 @@ export ShiftPolicy, Estimand
 export InterventionalMean, MediationContrast, LongitudinalPolicy, ScalarMediation
 export DiscreteTreatmentPolicy, DiscreteInterventionalMean
 export RepeatedOutcomeMSM, run_repeated_outcome_msm, msm_contrast, identify_repeated_outcomes
+export ParametricRepeatedOutcomeMSM, run_parametric_repeated_msm
 export unstack_repeated_outcomes
 export discrete_recode_policy, discrete_static_policy, discrete_shift_policy
 export apply_discrete_policy, run_discrete_lmtp, discrete_positivity
@@ -102,7 +104,7 @@ export simulate_linear_mtp, simulate_mediation, simulate_discrete_survival_mtp
 export simulate_mixed_baseline_mtp
 export simulate_binomial_mtp, simulate_multinomial_outcome
 export simulate_categorical_treatment_mtp, simulate_sequential_factor_mtp
-export simulate_repeated_outcome_ate
+export simulate_repeated_outcome_ate, simulate_mean_treatment_time_msm
 export impute_covariates_mean!, ipcw_weights, handle_missing_data, weighted_influence_summary
 export MissingDataResult, complete_numeric_column
 export attach_missingness_metadata!, missingness_metadata, with_missingness, MISSINGNESS_META_KEY

@@ -20,6 +20,7 @@ Docstrings on the symbols below also carry `# References` sections.
 - `SequentialPolicy` · `run_sequential_lmtp` · `sequential_identification_certificate`
 - `SurvivalPolicy` · `run_survival_lmtp` · `survival_identification_certificate`
 - `RepeatedOutcomeMSM` · `run_repeated_outcome_msm` · `msm_contrast` · `unstack_repeated_outcomes` · `identify_repeated_outcomes`
+- `ParametricRepeatedOutcomeMSM` · `run_parametric_repeated_msm` · `simulate_mean_treatment_time_msm`
 - `build_lmtp_fold_cache`
 
 ## Mediation
@@ -77,6 +78,7 @@ CausalTargeted
 recommend_run_options
 run_lmtp_grid
 run_repeated_outcome_msm
+run_parametric_repeated_msm
 run_mediation_grid
 positivity_report
 sensitivity_report

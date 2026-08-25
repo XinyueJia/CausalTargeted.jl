@@ -16,7 +16,8 @@ Optional weakdep: [CausalMediation.jl](https://github.com/SimonAB/CausalMediatio
 | **0.3.7** | In history (`bb19381`, `CovariateSchema`); **not on General** (skipped; schema exports are in 0.3.8+) |
 | **0.3.8–0.3.9** | Skipped on General (same pattern as 0.3.5) |
 | **0.3.10** | On General ([#165016](https://github.com/JuliaRegistries/General/pull/165016), merged 2026-08-19); TagBot tagged `v0.3.10` — metalearners, discrete LMTP, sequential factor `policies`, `estimand_from_query`, nested eSL-inside-dSL |
-| **0.3.11** | Local tip of `main` (not yet on General) — repeated-outcome MSM (`run_repeated_outcome_msm`) |
+| **0.3.12** | Local tip of `main` (not yet on General) — parametric treatment×time MSM (`run_parametric_repeated_msm`) |
+| **0.3.11** | Local — repeated-outcome MSM (`run_repeated_outcome_msm`) |
 
 ## 0.3.10 register steps
 
