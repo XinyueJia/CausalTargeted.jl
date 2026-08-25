@@ -20,6 +20,7 @@ treatment policies* (MTPs) shift or otherwise transform the *natural* value of t
 |-------|-----------------|------------------------|
 | Stochastic / population interventions | Díaz & van der Laan (2012), *Biometrics* | `ShiftPolicy`, additive / multiplicative / threshold policies |
 | Longitudinal MTPs (LMTP): ID, EIF, TMLE & sequential DR | Díaz, Williams, Hoffman & Schenck (2023), *JASA* | `run_lmtp_grid`, `lmtp_tmle_contrast`, `LongitudinalPolicy` |
+| Point treatment, repeated outcomes (joint ``Σ``) | Rosenblum & van der Laan (2010), *IJB* | `run_repeated_outcome_msm`, `RepeatedOutcomeMSM`, `msm_contrast` |
 | Software reference (R) | Williams & Díaz (2023), *Observational Studies* | Conceptual parity, not API identity |
 | Discrete-time survival / event-time LMTP | Díaz, Hoffman & Hejazi (2024), *Lifetime Data Analysis* | `SurvivalPolicy`, `run_survival_lmtp` (competing risks deferred) |
 
@@ -67,6 +68,24 @@ IPCW for censoring. Pair with CausalDynamics `TemporalEffectQuery` (outcome =
 event-free indicator at the horizon) and `survival_identification_certificate`.
 Competing risks remain out of scope. Synthetic gate:
 `simulate_discrete_survival_mtp`.
+
+**Repeated outcomes under a static treatment.** When treatment is fixed once and
+the same response is measured at several times (wide `Y1…YT`),
+`run_repeated_outcome_msm` estimates the unstructured profile
+``τ(t)=E[Y_t\mid do(A=1)]-E[Y_t\mid do(A=0)]`` with a **joint** influence-function
+covariance. Shared cross-fit propensity and per-time outcome regressions yield
+``\widehat\Sigma`` so contrasts such as ``τ(t_3)-τ(t_2)`` use
+[`msm_contrast`](@ref). Default `estimator=:tmle` fluctuates ``Q_t`` on the
+shared clever covariate ``A/g-(1-A)/(1-g)``; `:eif` is the untargeted one-step.
+Long `(id, time, Y)` tables pivot with [`unstack_repeated_outcomes`](@ref).
+Missingness is a complete-profile policy (`time_indexed=true`); ``Y_t`` are
+never imputed. This is the point-treatment / multi-outcome setting
+(Rosenblum & van der Laan 2010; R `tmle::tmleMSM` as a conceptual reference),
+not sequential LMTP (time-varying ``A_t``). Pair with
+`identify_repeated_outcomes` (CausalTargeted helper over CausalDynamics
+`TotalEffectQuery`) when each ``Y_t`` shares a backdoor set.
+Parametric treatment×time MSMs are deferred. Synthetic gate:
+`simulate_repeated_outcome_ate`.
 
 **Transport weights.** `domain_transport_weights` / `transport_weighted_mean` provide
 marginal IPTW-style domain reweighting after a CausalDynamics `TransportQuery`

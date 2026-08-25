@@ -562,6 +562,57 @@ fig, _, _ = dagplot_chain(["A", "Y"];
 fig
 ```
 
+## 8. Repeated outcomes under a static treatment
+
+Binary point treatment with several ``Y_t`` on the same units (wide layout).
+The runner returns a joint covariance so ``τ(t_3)-τ(t_2)`` is a Wald contrast,
+not a pair of independent tests.
+
+```@example msm-walk
+using CausalTargeted, StableRNGs
+
+df, truth = simulate_repeated_outcome_ate(200; T = 3, rng = StableRNG(16))
+res = run_repeated_outcome_msm(
+    df, :A, [:Y1, :Y2, :Y3];
+    baseline = [:W],
+    folds = 2,
+    learners = (:glm, :mean),
+    rng = StableRNG(17),
+)
+c = msm_contrast(res, 2, 1)
+(res.estimates, c.estimate, c.se)
+```
+
+**Graph (identification).** Same backdoor set for each occasion
+(``W`` confounds ``A`` and every ``Y_t``).
+
+```@example msm-walk
+using CausalDynamics, Graphs, DAGMakie, CairoMakie
+
+g = DiGraph(5)
+add_edge!(g, 1, 2)
+for y in 3:5
+    add_edge!(g, 1, y)
+    add_edge!(g, 2, y)
+end
+ids = identify_repeated_outcomes(
+    g, :A, [:Y1, :Y2, :Y3];
+    node_names = [:W, :A, :Y1, :Y2, :Y3],
+)
+all(r -> r.identifiable && Set(r.adjustment) == Set([:W]), ids)
+```
+
+```@example msm-walk
+fig, _, _ = dagplot_confounding(["W", "A", "Y1"];
+    color_by = :adjustment,
+    exposure = 2,
+    outcome = 3,
+    adjustment = Set([1]),
+    title = "Good control W (each Yₜ)",
+)
+fig
+```
+
 ## Next steps
 
 | Topic | Page |

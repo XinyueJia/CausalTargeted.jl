@@ -4,6 +4,11 @@
             rng = StableRNG(1), learners = (:glm, :mean))
         @test only(r1.abs_error) < 0.12
 
+        r_msm = CausalTargeted.run_julia_synthetic_once(:repeated_outcome_ate; n = 500, folds = 3,
+            rng = StableRNG(102), learners = (:glm, :mean))
+        @test maximum(r_msm.abs_error) < 0.18
+        @test all(isfinite, r_msm.estimate)
+
         r_mixed = CausalTargeted.run_julia_synthetic_once(:mixed_baseline_mtp; n = 300, delta = 1.0,
             folds = 3, rng = StableRNG(101), learners = (:glm, :mean))
         @test only(r_mixed.abs_error) < 0.20

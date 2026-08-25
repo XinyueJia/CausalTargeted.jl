@@ -299,6 +299,24 @@ function run_julia_synthetic_once(
             delta = 0.0, truth = truth.psi, estimate = res.estimate, se = res.se, n = n,
             notes = "T=2 recode 2→1; classification ratios at t=1",
         ))
+    elseif scenario === :repeated_outcome_ate
+        df, truth = simulate_repeated_outcome_ate(n; rng = rng)
+        res = run_repeated_outcome_msm(
+            df, :A, [Symbol("Y", t) for t in 1:truth.T];
+            baseline = [:W],
+            folds = folds,
+            learners = learners,
+            rng = rng,
+        )
+        for t in 1:truth.T
+            push!(rows, recovery_row(;
+                scenario = "repeated_outcome_ate", stack = "julia",
+                estimand = "tau_t$t",
+                delta = 0.0, truth = truth.tau[t],
+                estimate = res.estimates[t], se = res.se[t], n = n,
+                notes = "unstructured MSM; joint IF Σ",
+            ))
+        end
     else
         error("Unknown scenario: $scenario")
     end
@@ -321,6 +339,7 @@ julia_synthetic_scenarios() = [
     :missing_covariate_mtp,
     :categorical_treatment_mtp,
     :sequential_factor_mtp,
+    :repeated_outcome_ate,
 ]
 
 # Available as CausalTargeted.run_julia_synthetic_once / julia_synthetic_scenarios (not exported).

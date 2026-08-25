@@ -946,9 +946,64 @@ function simulate_sequential_factor_mtp(
     return df, truth
 end
 
+"""
+    simulate_repeated_outcome_ate(n; T=4, β_a, β_w, ρ, σ_y, rng) -> (df, truth)
+
+Binary point treatment with ``T`` correlated outcomes (wide layout):
+
+- `W ~ N(0,1)`
+- `A ~ Bernoulli(logistic(0.5·W))`
+- shared factor `U ~ N(0,1)` and independent `ε_t`
+- `Y_t = β_a[t]·A + β_w·W + √ρ·U + √(1-ρ)·ε_t`
+
+Truth: `tau = β_a` (ATE profile; no treatment–covariate interaction).
+"""
+function simulate_repeated_outcome_ate(
+    n::Int;
+    T::Int = 4,
+    β_a::AbstractVector{<:Real} = [0.1, 0.7, 0.9, 0.3],
+    β_w::Real = 1.0,
+    ρ::Real = 0.5,
+    σ_y::Real = 0.5,
+    rng::AbstractRNG = StableRNG(1),
+)
+    T >= 1 || throw(ArgumentError("T must be ≥ 1"))
+    β = collect(Float64, β_a)
+    if length(β) == 1
+        β = fill(β[1], T)
+    elseif length(β) != T
+        throw(ArgumentError("β_a must have length 1 or T=$T; got $(length(β))"))
+    end
+    0 <= ρ <= 1 || throw(ArgumentError("ρ must lie in [0, 1]"))
+
+    W = randn(rng, n)
+    A = Float64.(rand(rng, n) .< (1 ./ (1 .+ exp.(-0.5 .* W))))
+    U = randn(rng, n)
+    cols = Dict{Symbol, Any}(:W => W, :A => A)
+    sqrt_ρ = sqrt(ρ)
+    sqrt_1mρ = sqrt(1 - ρ)
+    for t in 1:T
+        ε = randn(rng, n)
+        cols[Symbol("Y", t)] = β[t] .* A .+ Float64(β_w) .* W .+
+            σ_y .* (sqrt_ρ .* U .+ sqrt_1mρ .* ε)
+    end
+    df = DataFrame(cols)
+    # Stable column order: W, A, Y1…YT
+    select!(df, :W, :A, [Symbol("Y", t) for t in 1:T]...)
+    truth = (
+        name = "repeated_outcome_ate",
+        tau = β,
+        β_w = Float64(β_w),
+        ρ = Float64(ρ),
+        σ_y = Float64(σ_y),
+        T = T,
+    )
+    return df, truth
+end
+
 # Book / README DGPs; remaining simulators stay available as CausalTargeted.simulate_*
 export simulate_linear_mtp, simulate_mediation, simulate_discrete_survival_mtp
 export simulate_mixed_baseline_mtp
 export simulate_binomial_mtp, simulate_multinomial_outcome, simulate_categorical_treatment_mtp
-export simulate_sequential_factor_mtp
+export simulate_sequential_factor_mtp, simulate_repeated_outcome_ate
 export truth_shift_effect, effective_sd_shift, effective_raw_shift

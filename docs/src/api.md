@@ -19,6 +19,7 @@ Docstrings on the symbols below also carry `# References` sections.
 - `additive_shift_policy` · `multiplicative_shift_policy` · `threshold_shift_policy`
 - `SequentialPolicy` · `run_sequential_lmtp` · `sequential_identification_certificate`
 - `SurvivalPolicy` · `run_survival_lmtp` · `survival_identification_certificate`
+- `RepeatedOutcomeMSM` · `run_repeated_outcome_msm` · `msm_contrast` · `unstack_repeated_outcomes` · `identify_repeated_outcomes`
 - `build_lmtp_fold_cache`
 
 ## Mediation
@@ -53,7 +54,7 @@ Docstrings on the symbols below also carry `# References` sections.
 
 Categorical adjustment variables are handled automatically by CausalTargeted's
 g-computation, LMTP (Gaussian, classification, and hybrid density ratios), LMTP
-fold-cache, sequential LMTP, survival LMTP, and missing-data nuisance pathways.
+fold-cache, sequential LMTP, survival LMTP, repeated-outcome MSM, and missing-data nuisance pathways.
 Numeric, `Bool`, `String`, and explicit categorical-array columns may be passed
 without manual dummy coding. A stable internal numeric representation is fitted
 on the cleaned analysis data and reused across folds. Integer columns are numeric
@@ -75,6 +76,7 @@ baseline types.
 CausalTargeted
 recommend_run_options
 run_lmtp_grid
+run_repeated_outcome_msm
 run_mediation_grid
 positivity_report
 sensitivity_report

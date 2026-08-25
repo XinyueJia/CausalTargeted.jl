@@ -39,8 +39,8 @@ indicator columns, and `meta` (`strategy`, miss rates, optional PCH `rung`,
 [`missingness_metadata`](@ref) / [`with_missingness`](@ref).
 
 For `:ipcw` and `:ipcw_impute`, fitted weights enter the influence-function
-summary in `run_lmtp_grid`, `run_gcomp`, sequential LMTP, discrete LMTP, and
-survival LMTP, so `:drop` and `:ipcw` need not coincide under MAR $Y$.
+summary in `run_lmtp_grid`, `run_gcomp`, sequential LMTP, discrete LMTP,
+repeated-outcome MSM, and survival LMTP, so `:drop` and `:ipcw` need not coincide under MAR $Y$.
 
 ```julia
 using CausalTargeted, StableRNGs
@@ -62,6 +62,7 @@ missingness_metadata(grid).strategy  # :ipcw
 | G-computation | `run_gcomp(...; handle_missing=)` | Same four strategies |
 | Sequential LMTP | `run_sequential_lmtp(...; handle_missing=)` | `time_indexed=true` in meta |
 | Discrete LMTP | `run_discrete_lmtp(...; handle_missing=)` | Factor $A$ |
+| Repeated-outcome MSM | `run_repeated_outcome_msm(...; handle_missing=)` | Complete-profile $R$ across all $Y_t$; outcomes are not imputed |
 | Survival LMTP | `run_survival_lmtp(...; handle_missing=)` | MAR missing terminal $S_T$ ≠ censoring IPCW |
 | Mediation | CausalMediation `handle_missing` | Forwards to `handle_missing_data` |
 

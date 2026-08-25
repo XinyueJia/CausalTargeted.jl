@@ -6,6 +6,7 @@
 
 CausalTargeted implements cross-fitted targeted estimators for continuous and
 longitudinal exposures: longitudinal modified treatment policies (LMTP),
+point-treatment repeated-outcome profiles with joint covariance,
 interventional mediation (TE / NDE / NIE under MTP), positivity diagnostics,
 nested Monte Carlo stability checks, and omitted-confounder sensitivity.
 Defaults favour small-to-moderate sample sizes. Identification is delegated to
@@ -60,6 +61,18 @@ grid = run_lmtp_grid(
 )
 ```
 
+Repeated outcomes under a static binary treatment (joint ``Σ`` for profile contrasts):
+
+```julia
+df, truth = simulate_repeated_outcome_ate(500)
+res = run_repeated_outcome_msm(
+    df, :A, [:Y1, :Y2, :Y3, :Y4];
+    baseline = [:W], folds = 3, learners = (:glm, :mean),
+)
+# τ̂(t₃) − τ̂(t₂) with SE from the joint covariance
+c = msm_contrast(res, 3, 2)
+```
+
 ## Ecosystem
 
 | Package | Role |
@@ -74,6 +87,7 @@ grid = run_lmtp_grid(
 | Need | This package | Familiar elsewhere |
 |------|--------------|--------------------|
 | LMTP / MTP δ-grids | Yes | R `lmtp`, Python Ananke |
+| Point treatment, repeated ``Y_t`` + joint ``Σ`` | Yes (`run_repeated_outcome_msm`) | R `tmle::tmleMSM` |
 | Interventional mediation (TE/NDE/NIE) | Yes | R `crumble` / tmle3 |
 | Consumes upstream ID certificate | **Unique** | Partial (separate packages) |
 | Small-*n* Super Learner profiles | Yes | sl3 + glue |
@@ -91,7 +105,7 @@ CI develops tip CausalDynamics and CausalMediation so missingness and mediation 
 
 | Guardrail | What we exercise | Where |
 |-----------|------------------|-------|
-| **Unit / API** | Covariate schema, missing-data policies (`:drop`, IPCW, imputation), Super Learner / metalearners, LMTP and discrete LMTP grids, sequential / survival policies, g-comp, DiD, sensitivity, transport, certificates, MTP plotting | `test/` |
+| **Unit / API** | Covariate schema, missing-data policies (`:drop`, IPCW, imputation), Super Learner / metalearners, LMTP and discrete LMTP grids, repeated-outcome MSM, sequential / survival policies, g-comp, DiD, sensitivity, transport, certificates, MTP plotting | `test/` |
 | **Synthetic recovery** | Oracle TE / NDE / NIE under known DGPs; misspecification, weak positivity, $n_\mathrm{mc}$ sweeps, learner comparisons | `test/test_recovery.jl`, `test/test_core.jl`, `test/test_metalearners.jl` |
 | **Missingness matrix** | Estimand × handle\_missing strategy grid, posterior MAR imputation, Dynamics→Targeted incomplete panels | `test/test_missing_strategies_matrix.jl`, `test/test_posterior_imputation.jl`, `test/test_missingness_edge_cases.jl` |
 | **Integration / extensions** | CausalMediation weakdep façades, MLJ / EvoTrees / XGBoost / Flux learners, Makie MTP curves | `test/test_mediation.jl`, `test/test_mlj_ext.jl`, `test/test_mtp_plotting.jl` |

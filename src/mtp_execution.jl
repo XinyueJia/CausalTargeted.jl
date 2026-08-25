@@ -173,6 +173,37 @@ function execute_estimand(
             positivity_ok = res.positivity.ok,
             stratum = "full_population",
         )])
+    elseif estimand isa RepeatedOutcomeMSM
+        allowed = (
+            :folds, :rng, :learners, :learners_outcome, :learners_trt,
+            :handle_missing, :estimator,
+        )
+        msm_kw = (; (p.first => p.second for p in pairs(kwargs) if p.first in allowed)...)
+        learners = get(msm_kw, :learners,
+            get(msm_kw, :learners_outcome, DEFAULT_SL_LEARNERS))
+        res = run_repeated_outcome_msm(
+            data, estimand.trt, estimand.outcomes;
+            baseline = estimand.adjustment,
+            learners = learners,
+            (; (p.first => p.second for p in pairs(msm_kw) if p.first in (
+                :folds, :rng, :learners_trt, :handle_missing, :estimator,
+            ))...)...,
+        )
+        z = 1.96
+        df_out = DataFrame(
+            delta = fill(NaN, length(res.outcomes)),
+            estimand = fill("TE", length(res.outcomes)),
+            outcome = String.(res.outcomes),
+            est = res.estimates,
+            se = res.se,
+            lwr = res.estimates .- z .* res.se,
+            upr = res.estimates .+ z .* res.se,
+            positivity_ok = fill(res.positivity.ok, length(res.outcomes)),
+            stratum = fill("full_population", length(res.outcomes)),
+        )
+        metadata!(df_out, "causal_targeted_msm_covariance", res.covariance; style = :note)
+        attach_missingness_metadata!(df_out, res.missingness)
+        df_out
     else
         error("Unsupported estimand type $(typeof(estimand))")
     end
@@ -184,7 +215,9 @@ function execute_estimand(
                 p isa DiscreteTreatmentPolicy || !isempty(p)
             end
         )
-        density_ratio_meta = if estimand isa DiscreteInterventionalMean || seq_factor
+        density_ratio_meta = if estimand isa RepeatedOutcomeMSM
+            :propensity
+        elseif estimand isa DiscreteInterventionalMean || seq_factor
             get(kwargs, :density_ratio, :classification)
         else
             get(kwargs, :density_ratio, :gaussian)

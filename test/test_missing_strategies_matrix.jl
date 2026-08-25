@@ -113,6 +113,24 @@ end
         end
     end
 
+    @testset "repeated-outcome MSM missing Y/W" begin
+        df, _ = simulate_repeated_outcome_ate(
+            120; T = 3, β_a = [0.1, 0.7, 0.9], rng = StableRNG(50),
+        )
+        df.Y2 = Vector{Union{Float64, Missing}}(df.Y2)
+        df.Y2[1:15] .= missing
+        for strat in STRATS
+            r = run_repeated_outcome_msm(
+                df, :A, [:Y1, :Y2, :Y3];
+                baseline = [:W], folds = 2, learners = (:glm, :mean),
+                rng = StableRNG(50), handle_missing = strat,
+            )
+            @test all(isfinite, r.estimates)
+            @test r.missingness.strategy === strat
+            @test r.missingness.time_indexed === true
+        end
+    end
+
     @testset "mediation MAR Y all strategies" begin
         df, truth = CausalMediation.simulate_mediation(160; rng = StableRNG(44))
         rng = StableRNG(45)

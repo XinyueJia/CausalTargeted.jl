@@ -21,6 +21,7 @@ Prefer **method names**, not R package nicknames:
 | `:mediation` | `run_mediation_grid`, `run_mediation_scalar`, `MediationContrast` | Interventional TE / NDE / NIE under MTP shifts |
 | `:sequential_lmtp` | `run_sequential_lmtp` | Multi-time sequential regression (numeric shift or factor `policies`) |
 | `:survival_lmtp` | `run_survival_lmtp`, `SurvivalPolicy` | Discrete-time event-time / survival LMTP |
+| `:repeated_msm` | `run_repeated_outcome_msm`, `RepeatedOutcomeMSM`, `msm_contrast` | Binary point treatment, repeated outcomes, joint IF ``Σ`` |
 | `:scalar` | `ScalarMediation` | Single-contrast mediation helpers |
 
 ## Legacy R concordance (`crumble`)
@@ -38,5 +39,6 @@ Cite the papers (`liu2024mediation`, `liu2025crumble`, `diaz2020mediation`); do 
 Exported for book / README examples: `simulate_linear_mtp`, `simulate_mediation`,
 `simulate_discrete_survival_mtp`, `simulate_mixed_baseline_mtp`,
 `simulate_binomial_mtp`, `simulate_multinomial_outcome`,
-`simulate_categorical_treatment_mtp`, `simulate_sequential_factor_mtp`.
+`simulate_categorical_treatment_mtp`, `simulate_sequential_factor_mtp`,
+`simulate_repeated_outcome_ate`.
 Other scenario builders and `run_julia_synthetic_once` remain in-module (qualified as `CausalTargeted.…`) for package tests and `scripts/synthetic_benchmark/`.

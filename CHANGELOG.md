@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Repeated-outcome MSM (point treatment):** `RepeatedOutcomeMSM`,
+  `run_repeated_outcome_msm`, and `msm_contrast` estimate the profile
+  ``τ(t) = E[Y_t | do(A=1)] - E[Y_t | do(A=0)]`` with a **joint** influence-function
+  covariance (shared cross-fit propensity; per-outcome Q). Engine
+  `:repeated_msm`. Synthetic gate `simulate_repeated_outcome_ate`; ID helper
+  `identify_repeated_outcomes`. Long tables pivot with `unstack_repeated_outcomes`.
+  Default `estimator=:tmle` (per-fold clever-covariate fluctuation); `:eif` is
+  untargeted AIPW. Missingness uses a shared complete-profile ``R`` (outcomes are
+  not imputed). Coverage: `test/test_repeated_outcome_msm.jl`,
+  `test/test_missing_strategies_matrix.jl`, recovery scenario
+  `:repeated_outcome_ate`. Parametric treatment×time MSM (full `tmleMSM` parity)
+  deferred.
+
 - `MissingDataResult` from `handle_missing_data` (destructuring of
   `data, weights, extra` unchanged) with `meta` recording `strategy`, miss
   rates, optional PCH `rung`, and `time_indexed`. `complete_numeric_column`
