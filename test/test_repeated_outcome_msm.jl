@@ -1,4 +1,4 @@
-using LinearAlgebra: diag, issymmetric
+using LinearAlgebra: Symmetric, diag, eigvals, issymmetric
 
 @testset "repeated-outcome MSM (point treatment)" begin
     df, truth = simulate_repeated_outcome_ate(800; T = 4, rng = StableRNG(101))
@@ -149,6 +149,22 @@ using LinearAlgebra: diag, issymmetric
     @test res_unit.covariance_kind === :unit
     @test res_cl.estimates ≈ res_unit.estimates atol = 1e-12
     @test res_cl.covariance ≉ res_unit.covariance
+    # Cluster sandwich re-aggregates ICs; finite-sample SE_cluster ≱ SE_unit always
+    @test all(isfinite, res_cl.se)
+    @test all(≥(0), eigvals(Symmetric(res_cl.covariance)))
+    @test length(unique(res_cl.cluster)) == 20
+    # Vector form of cluster= matches Symbol form
+    res_vec = run_repeated_outcome_msm(
+        df_c, :A, [:Y1, :Y2, :Y3, :Y4];
+        baseline = [:W], folds = 3, learners = (:glm, :mean), rng = StableRNG(211),
+        cluster = df_c.cluster,
+    )
+    @test res_vec.covariance ≈ res_cl.covariance atol = 1e-12
+    @test_throws ArgumentError run_repeated_outcome_msm(
+        df_c, :A, [:Y1, :Y2, :Y3, :Y4];
+        baseline = [:W], folds = 2, learners = (:glm, :mean), rng = StableRNG(212),
+        cluster = :missing_col,
+    )
     pres = run_parametric_repeated_msm(
         df_c, :A, [:Y1, :Y2, :Y3, :Y4];
         baseline = [:W], design = :constant, folds = 3,

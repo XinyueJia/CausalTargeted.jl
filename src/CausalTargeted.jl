@@ -20,6 +20,9 @@ module CausalTargeted
 
 using DataFrames
 using CausalDynamics
+using LinearAlgebra
+using Random
+using Statistics
 
 include("config.jl")
 include("engines.jl")

@@ -18,6 +18,11 @@ DAGMakie / `plot_mtp_curve` / posterior figures. Fixtures: [`docs/data/`](https:
 [SimonAB/causal-dynamics-book](https://github.com/SimonAB/causal-dynamics-book)
 → `scripts/stress_harness/` and `data/catalog.toml`.
 
+**Hierarchical nesting / cluster sandwich:** generative nested ``U`` and DAG
+unrolling live in CausalDynamics
+([hierarchy stress](https://github.com/SimonAB/CausalDynamics.jl/blob/main/docs/stress/hierarchy_stress.qmd));
+MSM `cluster=` recovery is covered there and in `test/test_msm.jl`.
+
 **Julia↔R concordance** (known-truth LMTP / mediation vs `lmtp` / `crumble`)
 remains under `scripts/synthetic_benchmark/` in the same repository. Do not
 promote Super Learner defaults from a single Monte Carlo batch.

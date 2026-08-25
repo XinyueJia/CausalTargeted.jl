@@ -15,7 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `run_parametric_repeated_msm` (column symbol or id vector). Point
   estimates unchanged; ``\\widehat{\\Sigma}`` uses the cluster sandwich
   (`covariance_kind = :cluster`). Sampling hierarchy ≠ LMM / BLUP.
-  Coverage: `test/test_repeated_outcome_msm.jl`.
+  Coverage: `test/test_repeated_outcome_msm.jl`. Stress hand-off:
+  CausalDynamics `docs/stress/hierarchy_stress.qmd`; Documenter link in
+  [stress_validation.md](docs/src/stress_validation.md).
 
 ## [0.3.12] — 2026-08-25
 
