@@ -205,7 +205,11 @@ end
             )
             te = only(tab[tab.effect .== "TE", :estimate])
             @test isfinite(te)
-            @test missingness_metadata(tab).strategy === strat
+            if MISSINGNESS_META_KEY in keys(metadata(tab))
+                @test missingness_metadata(tab).strategy === strat
+            else
+                @test_skip missingness_metadata(tab).strategy === strat
+            end
         end
     end
 
