@@ -571,7 +571,9 @@ not a pair of independent tests.
 ```@example msm-walk
 using CausalTargeted, StableRNGs
 
-df, truth = simulate_repeated_outcome_ate(200; T = 3, rng = StableRNG(16))
+df, truth = simulate_repeated_outcome_ate(
+    200; T = 3, β_a = [0.1, 0.7, 0.9], rng = StableRNG(16),
+)
 res = run_repeated_outcome_msm(
     df, :A, [:Y1, :Y2, :Y3];
     baseline = [:W],
