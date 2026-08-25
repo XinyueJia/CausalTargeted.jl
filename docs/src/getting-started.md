@@ -613,6 +613,21 @@ fig, _, _ = dagplot_confounding(["W", "A", "Y1"];
 fig
 ```
 
+A parametric treatment×time MSM projects the same IF estimates onto a design
+(for example linear time in ``τ``, or a mean model ``m(t,a)``):
+
+```@example msm-walk
+pres = run_parametric_repeated_msm(
+    df, :A, [:Y1, :Y2, :Y3];
+    baseline = [:W],
+    design = :linear_time,
+    folds = 2,
+    learners = (:glm, :mean),
+    rng = StableRNG(18),
+)
+(pres.coef_names, pres.coefficients, pres.fitted_tau)
+```
+
 ## Next steps
 
 | Topic | Page |

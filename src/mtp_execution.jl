@@ -176,7 +176,7 @@ function execute_estimand(
     elseif estimand isa RepeatedOutcomeMSM
         allowed = (
             :folds, :rng, :learners, :learners_outcome, :learners_trt,
-            :handle_missing, :estimator,
+            :handle_missing, :estimator, :cluster,
         )
         msm_kw = (; (p.first => p.second for p in pairs(kwargs) if p.first in allowed)...)
         learners = get(msm_kw, :learners,
@@ -186,7 +186,7 @@ function execute_estimand(
             baseline = estimand.adjustment,
             learners = learners,
             (; (p.first => p.second for p in pairs(msm_kw) if p.first in (
-                :folds, :rng, :learners_trt, :handle_missing, :estimator,
+                :folds, :rng, :learners_trt, :handle_missing, :estimator, :cluster,
             ))...)...,
         )
         z = 1.96
@@ -207,7 +207,7 @@ function execute_estimand(
     elseif estimand isa ParametricRepeatedOutcomeMSM
         allowed = (
             :folds, :rng, :learners, :learners_outcome, :learners_trt,
-            :handle_missing, :estimator,
+            :handle_missing, :estimator, :cluster,
         )
         msm_kw = (; (p.first => p.second for p in pairs(kwargs) if p.first in allowed)...)
         learners = get(msm_kw, :learners,
@@ -219,7 +219,7 @@ function execute_estimand(
             target = estimand.target,
             learners = learners,
             (; (p.first => p.second for p in pairs(msm_kw) if p.first in (
-                :folds, :rng, :learners_trt, :handle_missing, :estimator,
+                :folds, :rng, :learners_trt, :handle_missing, :estimator, :cluster,
             ))...)...,
         )
         z = 1.96

@@ -88,8 +88,11 @@ not sequential LMTP (time-varying ``A_t``). Pair with
 Parametric MSMs project that profile (or stacked means ``μ(t,a)``) onto a
 design with GLS: `run_parametric_repeated_msm` / `ParametricRepeatedOutcomeMSM`
 (`:constant`, `:linear_time`, `:factor_time`, custom matrices, or
-`:mean_treatment_time` with `target=:mean`). Synthetic gates:
-`simulate_repeated_outcome_ate`, `simulate_mean_treatment_time_msm`.
+`:mean_treatment_time` with `target=:mean`). Pass `cluster=:cluster` (or a
+length-`n` id vector) for a **cluster-robust** sandwich on ``\\widehat{\\Sigma}``;
+point estimates are unchanged (sampling hierarchy, not BLUP). Synthetic gates:
+`simulate_repeated_outcome_ate`, `simulate_mean_treatment_time_msm`. Generative
+nested ``U`` DGPs live in CausalDynamics (`RandomEffectSpec`).
 
 **Transport weights.** `domain_transport_weights` / `transport_weighted_mean` provide
 marginal IPTW-style domain reweighting after a CausalDynamics `TransportQuery`

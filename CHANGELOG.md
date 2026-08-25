@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.13] — 2026-08-25
+
+### Added
+
+- **Cluster-robust MSM covariance:** `cluster=` on `run_repeated_outcome_msm`
+  and `run_parametric_repeated_msm` (column symbol or id vector). Point
+  estimates unchanged; ``\\widehat{\\Sigma}`` uses the cluster sandwich
+  (`covariance_kind = :cluster`). Sampling hierarchy ≠ LMM / BLUP.
+  Coverage: `test/test_repeated_outcome_msm.jl`.
+
 ## [0.3.12] — 2026-08-25
 
 ### Added

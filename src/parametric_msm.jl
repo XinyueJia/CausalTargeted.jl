@@ -195,6 +195,7 @@ function run_parametric_repeated_msm(
     rng::AbstractRNG = StableRNG(1),
     handle_missing::Symbol = :drop,
     estimator::Symbol = :tmle,
+    cluster::Union{Nothing, Symbol, AbstractVector} = nothing,
 )
     target in (:tau, :mean) || throw(ArgumentError(
         "target must be :tau or :mean; got :$target",
@@ -216,6 +217,7 @@ function run_parametric_repeated_msm(
         rng = rng,
         handle_missing = handle_missing,
         estimator = estimator,
+        cluster = cluster,
     )
     T = length(un.outcomes)
 
@@ -254,6 +256,8 @@ function run_parametric_repeated_msm(
         outcomes = un.outcomes,
         n = un.n,
         positivity = un.positivity,
+        cluster = un.cluster,
+        covariance_kind = un.covariance_kind,
     ), un.missingness)
 end
 

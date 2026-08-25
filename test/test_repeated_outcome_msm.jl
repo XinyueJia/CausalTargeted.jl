@@ -127,6 +127,35 @@ using LinearAlgebra: diag, issymmetric
         @test !any(ismissing, rmiss.ic)
     end
 
+    # Cluster-robust Σ: same point estimates; sampling hierarchy only
+    df_c = copy(df)
+    df_c.cluster = Float64.(mod1.(1:n, 20))
+    rng_u = StableRNG(210)
+    u_by = Dict{Float64, Float64}(c => randn(rng_u) for c in unique(df_c.cluster))
+    uvec = [u_by[c] for c in df_c.cluster]
+    for y in (:Y1, :Y2, :Y3, :Y4)
+        df_c[!, y] = df_c[!, y] .+ uvec
+    end
+    res_unit = run_repeated_outcome_msm(
+        df_c, :A, [:Y1, :Y2, :Y3, :Y4];
+        baseline = [:W], folds = 3, learners = (:glm, :mean), rng = StableRNG(211),
+    )
+    res_cl = run_repeated_outcome_msm(
+        df_c, :A, [:Y1, :Y2, :Y3, :Y4];
+        baseline = [:W], folds = 3, learners = (:glm, :mean), rng = StableRNG(211),
+        cluster = :cluster,
+    )
+    @test res_cl.covariance_kind === :cluster
+    @test res_unit.covariance_kind === :unit
+    @test res_cl.estimates ≈ res_unit.estimates atol = 1e-12
+    @test res_cl.covariance ≉ res_unit.covariance
+    pres = run_parametric_repeated_msm(
+        df_c, :A, [:Y1, :Y2, :Y3, :Y4];
+        baseline = [:W], design = :constant, folds = 3,
+        learners = (:glm, :mean), rng = StableRNG(211), cluster = :cluster,
+    )
+    @test pres.covariance_kind === :cluster
+
     rec = CausalTargeted.run_julia_synthetic_once(
         :repeated_outcome_ate; n = 600, folds = 3,
         rng = StableRNG(109), learners = (:glm, :mean),

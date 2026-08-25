@@ -205,14 +205,20 @@ function _aipw_influence_matrix(
 end
 
 """
-    _msm_covariance(psi, estimates, ipcw_w) -> (Σ, se, ic)
+    _msm_covariance(psi, estimates, ipcw_w; cluster=nothing) -> (Σ, se, ic)
 
-Hajek-centred influence matrix and ``\\widehat{\\Sigma} = n^{-1}\\mathrm{Cov}(D_i)``.
+Hajek-centred influence matrix and sampling covariance of the mean.
+
+When `cluster` is `nothing`, ``\\widehat{\\Sigma}=n^{-2}D^\\top D`` (unit-level).
+When `cluster` is a length-`n` vector of cluster ids, use the cluster sandwich
+``\\widehat{\\Sigma}=n^{-2}\\sum_g s_g s_g^\\top`` with ``s_g=\\sum_{i\\in g} D_i``
+(sampling hierarchy; not an LMM / BLUP estimand).
 """
 function _msm_covariance(
     psi::AbstractMatrix{<:Real},
     estimates::AbstractVector{<:Real},
-    ipcw_w::AbstractVector{<:Real},
+    ipcw_w::AbstractVector{<:Real};
+    cluster::Union{Nothing, AbstractVector} = nothing,
 )
     n, T = size(psi)
     length(estimates) == T || throw(ArgumentError("estimates length must equal ncol(psi)"))
@@ -225,8 +231,21 @@ function _msm_covariance(
     for j in 1:T
         ic[:, j] = (w ./ w_bar) .* (Float64.(psi[:, j]) .- estimates[j])
     end
-    Σ = (ic' * ic) ./ n^2
-    # Symmetrise numerical noise
+    if cluster === nothing
+        Σ = (ic' * ic) ./ n^2
+    else
+        length(cluster) == n || throw(ArgumentError("cluster length must match nrow(psi)"))
+        groups = Dict{Any, Vector{Int}}()
+        for i in 1:n
+            push!(get!(groups, cluster[i], Int[]), i)
+        end
+        Σ = zeros(T, T)
+        for idxs in values(groups)
+            s = vec(sum(ic[idxs, :]; dims = 1))
+            Σ .+= s * s'
+        end
+        Σ ./= n^2
+    end
     Σ = Symmetric(0.5 .* (Σ .+ Σ'))
     se = sqrt.(diag(Σ))
     return Matrix{Float64}(Σ), se, ic
@@ -411,17 +430,21 @@ end
 
 """
     run_repeated_outcome_msm(df, treatment, outcomes; baseline, folds, learners, rng,
-                             handle_missing, estimator) -> NamedTuple
+                             handle_missing, estimator, cluster) -> NamedTuple
 
 Estimate ``\\tau(t)`` for binary point treatment and several outcomes with a
 **joint** influence-function covariance.
 
-Returns `(estimates, se, covariance, ic, outcomes, n, positivity, missingness)`.
+Returns `(estimates, se, covariance, ic, outcomes, n, positivity, missingness, …)`.
 Use [`msm_contrast`](@ref) for linear forms ``c^\\top\\tau`` (e.g. ``\\tau(t_3)-\\tau(t_2)``).
 
 Missingness uses a **shared** sample across times (complete-profile ``R``).
 `estimator=:tmle` (default) applies a per-fold clever-covariate fluctuation;
 `:eif` is the untargeted AIPW one-step.
+
+`cluster` may be a column `Symbol` in `df` or a length-`nrow(df)` id vector.
+When set, ``\\widehat{\\Sigma}`` is cluster-robust (sampling hierarchy). This does
+**not** change the estimand to BLUP / partial pooling.
 """
 function run_repeated_outcome_msm(
     df::DataFrame,
@@ -434,6 +457,7 @@ function run_repeated_outcome_msm(
     rng::AbstractRNG = StableRNG(1),
     handle_missing::Symbol = :drop,
     estimator::Symbol = :tmle,
+    cluster::Union{Nothing, Symbol, AbstractVector} = nothing,
 )
     validate_contrast_learners(learners; context = "run_repeated_outcome_msm")
     outs = collect(Symbol, outcomes)
@@ -455,6 +479,7 @@ function run_repeated_outcome_msm(
     n >= folds || throw(ArgumentError(
         "need at least $folds complete-profile rows after handle_missing=:$handle_missing; got $n",
     ))
+    cluster_ids = _resolve_cluster_ids(df_clean, cluster, n)
     fold_sets = crossfit_indices(n, folds, rng)
     g_hat = _crossfit_propensity_folds(
         df_clean, treatment, adj_covars, fold_sets;
@@ -464,10 +489,9 @@ function run_repeated_outcome_msm(
         df_clean, treatment, outs, adj_covars, fold_sets, g_hat, ipcw_w;
         learners = learners, rng = rng, estimator = estimator,
     )
-    Σ, se, ic = _msm_covariance(psi, estimates, ipcw_w)
-    # Keep μ components available to parametric MSM (not exported on the public NT).
-    Σ_μ1, _, ic_μ1 = _msm_covariance(psi_μ1, μ1, ipcw_w)
-    Σ_μ0, _, ic_μ0 = _msm_covariance(psi_μ0, μ0, ipcw_w)
+    Σ, se, ic = _msm_covariance(psi, estimates, ipcw_w; cluster = cluster_ids)
+    Σ_μ1, _, ic_μ1 = _msm_covariance(psi_μ1, μ1, ipcw_w; cluster = cluster_ids)
+    Σ_μ0, _, ic_μ0 = _msm_covariance(psi_μ0, μ0, ipcw_w; cluster = cluster_ids)
 
     min_g = minimum(g_hat)
     max_g = maximum(g_hat)
@@ -492,7 +516,30 @@ function run_repeated_outcome_msm(
         outcomes = outs,
         n = n,
         positivity = positivity,
+        cluster = cluster_ids,
+        covariance_kind = cluster_ids === nothing ? :unit : :cluster,
     ), miss.meta)
+end
+
+"""
+    _resolve_cluster_ids(df, cluster, n) -> Union{Nothing, Vector}
+
+Normalise `cluster` kwarg to a length-`n` vector of ids (or `nothing`).
+"""
+function _resolve_cluster_ids(df::DataFrame, cluster, n::Int)
+    if cluster === nothing
+        return nothing
+    elseif cluster isa Symbol
+        hasproperty(df, cluster) || throw(ArgumentError(
+            "cluster column :$cluster not found in analysis frame",
+        ))
+        return collect(df[!, cluster])
+    else
+        length(cluster) == n || throw(ArgumentError(
+            "cluster vector length $(length(cluster)) must match analysis n=$n",
+        ))
+        return collect(cluster)
+    end
 end
 
 """

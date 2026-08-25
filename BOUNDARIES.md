@@ -20,6 +20,10 @@
 - Synthetic DGPs for **package** tests
 - Soft façades for mediation APIs (implementation in **CausalMediation.jl**)
 - Optional Makie MTP effect-curve plotting (`plot_mtp_curve` / `mtp_curve!` via `CausalTargetedMakieExt`); visualises already-estimated grids, does not estimate
+- **Cluster-aware estimation:** `cluster=` on `run_repeated_outcome_msm` /
+  `run_parametric_repeated_msm` for cluster-robust IF sandwich; consume
+  CausalDynamics hierarchical DGPs (`RandomEffectSpec` / `:cluster` column).
+  Sampling hierarchy ≠ LMM estimand
 
 ## CausalMediation.jl
 
@@ -57,6 +61,9 @@
 
 ## Out of scope (for now)
 
+- MixedModels / lme4-style fitting (application layer)
+- Random-effects Super Learner as LMTP default (opt-in candidates may come later)
+- Silent replacement of MSM ``τ(t)`` by BLUP partial pooling
 - Mixed continuous/discrete sequential `A_t` (rejected, not a planned path)
 - Survival-time factor recodes (`SurvivalPolicy` + `policies`)
 - Nested discrete Super Learner as the LMTP classifier default (opt-in `nested_sl_candidate` only)
