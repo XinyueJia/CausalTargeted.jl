@@ -24,6 +24,10 @@
   `run_parametric_repeated_msm` for cluster-robust IF sandwich; consume
   CausalDynamics hierarchical DGPs (`RandomEffectSpec` / `:cluster` column).
   Sampling hierarchy ≠ LMM estimand
+- **Optional MixedModels / profiled-NB2 backend** (weakdep extension
+  `CausalTargetedMixedModelsExt`): `fit_profiled_nb2`, `mixed_g_computation`
+  for static-treatment repeated outcomes. Parametric reference path; not the
+  default for LMTP or MSM
 
 ## CausalMediation.jl
 
@@ -61,7 +65,6 @@
 
 ## Out of scope (for now)
 
-- MixedModels / lme4-style fitting (application layer)
 - Random-effects Super Learner as LMTP default (opt-in candidates may come later)
 - Silent replacement of MSM ``τ(t)`` by BLUP partial pooling
 - Mixed continuous/discrete sequential `A_t` (rejected, not a planned path)

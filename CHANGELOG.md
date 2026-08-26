@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Optional MixedModels / profiled-NB2 backend** (`CausalTargetedMixedModelsExt`):
+  `fit_profiled_nb2`, `mixed_g_computation`, and related types for
+  static-treatment repeated-outcome standardised contrasts (Gaussian LMM,
+  fixed-shape NB2 GLMM, dedicated estimated-shape NB2 random-intercept fitter).
+  Weakdeps: MixedModels, FastGaussQuadrature, NLopt, SpecialFunctions.
+  Parametric reference path beside MSM / LMTP; not a default estimand swap.
+  Coverage: `test/test_mixedmodels.jl`, `test/test_profiled_nb2.jl`.
+
 ## [0.3.13] — 2026-08-25
 
 ### Added
