@@ -215,7 +215,7 @@ function execute_estimand(
     elseif estimand isa RepeatedOutcomeMSM
         allowed = (
             :folds, :rng, :learners, :learners_outcome, :learners_trt,
-            :handle_missing, :estimator, :cluster,
+            :handle_missing, :estimator, :cluster, :strata, :propensity,
         )
         msm_kw = (; (p.first => p.second for p in pairs(kwargs) if p.first in allowed)...)
         learners = get(msm_kw, :learners,
@@ -226,19 +226,21 @@ function execute_estimand(
             learners = learners,
             (; (p.first => p.second for p in pairs(msm_kw) if p.first in (
                 :folds, :rng, :learners_trt, :handle_missing, :estimator, :cluster,
+                :strata, :propensity,
             ))...)...,
         )
         z = 1.96
+        index = res.parameter_index
         df_out = DataFrame(
-            delta = fill(NaN, length(res.outcomes)),
-            estimand = fill("TE", length(res.outcomes)),
-            outcome = String.(res.outcomes),
+            delta = fill(NaN, length(res.estimates)),
+            estimand = fill("TE", length(res.estimates)),
+            outcome = String.([x.outcome for x in index]),
             est = res.estimates,
             se = res.se,
             lwr = res.estimates .- z .* res.se,
             upr = res.estimates .+ z .* res.se,
-            positivity_ok = fill(res.positivity.ok, length(res.outcomes)),
-            stratum = fill("full_population", length(res.outcomes)),
+            positivity_ok = fill(res.positivity.ok, length(res.estimates)),
+            stratum = [x.stratum === nothing ? "full_population" : string(x.stratum) for x in index],
         )
         metadata!(df_out, "causal_targeted_msm_covariance", res.covariance; style = :note)
         attach_missingness_metadata!(df_out, res.missingness)
@@ -246,7 +248,7 @@ function execute_estimand(
     elseif estimand isa ParametricRepeatedOutcomeMSM
         allowed = (
             :folds, :rng, :learners, :learners_outcome, :learners_trt,
-            :handle_missing, :estimator, :cluster,
+            :handle_missing, :estimator, :cluster, :strata, :propensity,
         )
         msm_kw = (; (p.first => p.second for p in pairs(kwargs) if p.first in allowed)...)
         learners = get(msm_kw, :learners,
@@ -259,6 +261,7 @@ function execute_estimand(
             learners = learners,
             (; (p.first => p.second for p in pairs(msm_kw) if p.first in (
                 :folds, :rng, :learners_trt, :handle_missing, :estimator, :cluster,
+                :strata, :propensity,
             ))...)...,
         )
         z = 1.96

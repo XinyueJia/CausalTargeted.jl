@@ -75,7 +75,8 @@ include("mmrm.jl")
 export ShiftPolicy, Estimand
 export InterventionalMean, MediationContrast, LongitudinalPolicy, ScalarMediation
 export DiscreteTreatmentPolicy, DiscreteInterventionalMean, TwoPartInterventionalMean
-export RepeatedOutcomeMSM, run_repeated_outcome_msm, msm_contrast, identify_repeated_outcomes
+export RepeatedOutcomeMSM, run_repeated_outcome_msm, msm_contrast, msm_stratum_contrast
+export identify_repeated_outcomes
 export ParametricRepeatedOutcomeMSM, run_parametric_repeated_msm
 export unstack_repeated_outcomes
 export discrete_recode_policy, discrete_static_policy, discrete_shift_policy

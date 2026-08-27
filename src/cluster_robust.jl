@@ -3,9 +3,17 @@
 """
     resolve_cluster_ids(df, cluster, n) -> Union{Nothing, Vector}
 
-Normalise `cluster` to a length-`n` id vector, or `nothing`.
+Normalise `cluster` to a length-`n` id vector, or `nothing`. When `cluster` is a
+vector aligned to the input rows, pass `input_n=nrow(df)` and `input_rows` indexing
+into the analysis frame after missingness handling.
 """
-function resolve_cluster_ids(df::DataFrame, cluster, n::Int)
+function resolve_cluster_ids(
+    df::DataFrame,
+    cluster,
+    n::Int;
+    input_n::Int = n,
+    input_rows = nothing,
+)
     if cluster === nothing
         return nothing
     elseif cluster isa Symbol
@@ -14,10 +22,15 @@ function resolve_cluster_ids(df::DataFrame, cluster, n::Int)
         ))
         return collect(df[!, cluster])
     else
-        length(cluster) == n || throw(ArgumentError(
-            "cluster vector length $(length(cluster)) must match analysis n=$n",
-        ))
-        return collect(cluster)
+        if length(cluster) == n
+            return collect(cluster)
+        elseif input_rows !== nothing && length(cluster) == input_n
+            return collect(cluster[input_rows])
+        else
+            throw(ArgumentError(
+                "cluster vector length $(length(cluster)) must match input n=$input_n or analysis n=$n",
+            ))
+        end
     end
 end
 
