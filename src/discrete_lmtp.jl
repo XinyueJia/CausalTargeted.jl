@@ -179,7 +179,10 @@ function _fit_discrete_density_ratio(
     rng = StableRNG(1),
 )
     n = length(a_obs)
-    schema = _fit_treatment_schema(a_obs, a_policy, levels)
+    # Pad with canonical levels so cross-fold schemas include unseen arms.
+    padded_obs = vcat(collect(a_obs), string.(levels))
+    padded_pol = vcat(collect(a_policy), string.(levels))
+    schema = _fit_treatment_schema(padded_obs, padded_pol, levels)
     W_tr = vcat(W, W)
     S_tr = vcat(ones(n), zeros(n))
     X_tr = _discrete_ratio_design(

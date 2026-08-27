@@ -116,3 +116,25 @@
     @test occursin("run_discrete_lmtp", sprint(showerror, err))
     @test occursin("policies", sprint(showerror, err))
 end
+
+@testset "discrete LMTP cross-fold treatment levels" begin
+    # Apodemus-style: three arms, small n; training folds may omit an arm seen at validation.
+    rng = StableRNG(42)
+    n = 60
+    arms = ["R", "SS", "SC"]
+    A = vcat(fill("R", 28), fill("SS", 4), fill("SC", 28))
+    Random.shuffle!(rng, A)
+    df = DataFrame(W = randn(rng, n), A = A, Y = randn(rng, n))
+    policy = discrete_static_policy("SS"; levels = arms)
+    est = run_discrete_lmtp(
+        df, :A, :Y;
+        policy = policy,
+        baseline = [:W],
+        folds = 5,
+        learners_outcome = (:glm, :mean),
+        learners_trt = (:logistic, :mean),
+        rng = rng,
+    )
+    @test isfinite(est.estimate)
+    @test isfinite(est.se)
+end
