@@ -1,4 +1,4 @@
-using LinearAlgebra: Symmetric, diag, eigvals, issymmetric
+using LinearAlgebra: I, Symmetric, diag, eigvals, issymmetric
 
 @testset "repeated-outcome MSM (point treatment)" begin
     df, truth = simulate_repeated_outcome_ate(800; T = 4, rng = StableRNG(101))
@@ -21,6 +21,18 @@ using LinearAlgebra: Symmetric, diag, eigvals, issymmetric
     @test maximum(abs.(res.estimates .- truth.tau)) < 0.15
     # Marginal SE should match sqrt(diag(Σ))
     @test res.se ≈ sqrt.(diag(res.covariance)) atol = 1e-10
+    explicit_default = run_repeated_outcome_msm(
+        df, :A, [:Y1, :Y2, :Y3, :Y4]; baseline = [:W],
+        folds = 3, learners = (:glm, :mean), rng = StableRNG(102),
+        strata = nothing, propensity = nothing,
+    )
+    for field in (:estimates, :se, :covariance, :ic, :mu1, :mu0,
+                  :covariance_mu1, :covariance_mu0, :ic_mu1, :ic_mu0)
+        @test getproperty(explicit_default, field) == getproperty(res, field)
+    end
+    @test explicit_default.outcomes == res.outcomes
+    @test explicit_default.n == res.n
+    @test explicit_default.positivity == res.positivity
 
     # Joint contrast τ₃ − τ₂
     c = msm_contrast(res, 3, 2)
@@ -179,3 +191,159 @@ using LinearAlgebra: Symmetric, diag, eigvals, issymmetric
     @test maximum(rec.abs_error) < 0.18
 end
 
+@testset "joint effect-modifier stratification" begin
+    rng = StableRNG(310)
+    cells = [(age, sex) for age in ("younger", "older") for sex in ("F", "M")]
+    age_raw = String[]
+    sex = String[]
+    A = Float64[]
+    for (age, sx) in cells
+        append!(age_raw, fill(age, 24))
+        append!(sex, fill(sx, 24))
+        append!(A, repeat([0.0, 1.0], 12))
+    end
+    age = categorical(age_raw; levels = ["older", "younger"], ordered = true)
+    n = length(A)
+    W = randn(rng, n)
+    g = ifelse.(age_raw .== "older", 0.65, 0.35)
+    shared = 0.35 .* randn(rng, n)
+    df = DataFrame(W = W, Age = age, Sex = sex, A = A, g_known = g)
+    truth_tau = zeros(4, 4)
+    for t in 1:4
+        tau = @. 0.15 * t + 0.25 * t * (age_raw == "older") + 0.08 * (sex == "M")
+        noise = 0.25 .* randn(rng, n)
+        df[!, Symbol("Y", t)] = @. 1.0 + 0.5 * W + 0.2 * (age_raw == "older") +
+            tau * A + shared + noise
+    end
+
+    # Ordered categorical Age first, then stable first occurrence for Sex.
+    res = run_repeated_outcome_msm(
+        df, :A, [:Y1, :Y2, :Y3, :Y4]; baseline = [:W],
+        strata = [:Age, :Sex], propensity = :g_known,
+        folds = 3, learners = (:glm, :mean), rng = StableRNG(311),
+    )
+    @test res.strata.columns == [:Age, :Sex]
+    @test res.strata.levels == [
+        (Age = "older", Sex = "F"), (Age = "older", Sex = "M"),
+        (Age = "younger", Sex = "F"), (Age = "younger", Sex = "M"),
+    ]
+    @test res.strata.nuisance_adjustment == [:W, :Age, :Sex]
+    @test res.outcomes == [:Y1, :Y2, :Y3, :Y4]
+    @test length(res.estimates) == 16
+    @test size(res.ic) == (n, 16)
+    @test size(res.covariance) == (16, 16)
+    @test maximum(abs.(res.covariance .- res.covariance')) < 1e-12
+    @test minimum(eigvals(Symmetric(res.covariance))) > -1e-10
+    @test [x.position for x in res.parameter_index] == collect(1:16)
+    @test res.parameter_index[5].stratum == (Age = "older", Sex = "M")
+    @test res.parameter_index[5].outcome === :Y1
+    @test res.propensity_metadata == (estimated = false, source = :column, column = :g_known)
+    @test maximum(abs.(res.targeting_scores)) < 1e-10
+    @test maximum(abs.(res.targeting_scores_by_fold)) < 1e-10
+
+    # Manual conditional Hajek IC denominator for the first stratum/time cell.
+    mask = (age_raw .== "older") .& (sex .== "F")
+    manual_ic = Float64.(mask) ./ mean(mask) .* (res.uncentered_tau[:, 1] .- res.estimates[1])
+    @test res.ic[:, 1] ≈ manual_ic atol = 1e-12
+    @test abs(mean(res.ic[:, 1])) < 1e-12
+    @test res.se ≈ sqrt.(diag(res.covariance)) atol = 1e-12
+
+    # Single-column profile and age-modification contrast Gamma(t).
+    age_res = run_repeated_outcome_msm(
+        df, :A, [:Y1, :Y2, :Y3, :Y4]; baseline = [:W],
+        strata = :Age, propensity = g,
+        folds = 3, learners = (:glm, :mean), rng = StableRNG(312),
+    )
+    @test age_res.strata.levels == [(Age = "older",), (Age = "younger",)]
+    gamma = msm_stratum_contrast(age_res, "older", "younger")
+    @test gamma.estimates ≈ gamma.contrast_matrix * age_res.estimates atol = 1e-12
+    @test gamma.covariance ≈ gamma.contrast_matrix * age_res.covariance *
+        gamma.contrast_matrix' atol = 1e-12
+    @test gamma.se ≈ sqrt.(diag(gamma.covariance)) atol = 1e-12
+    @test gamma.outcomes == age_res.outcomes
+    @test maximum(abs.(gamma.estimates .- 0.25 .* (1:4))) < 0.22
+    arbitrary = msm_contrast(age_res, vcat([1.0, -1.0], zeros(6)))
+    @test arbitrary.estimate ≈ age_res.estimates[1] - age_res.estimates[2]
+
+    # Scalar, column, vector, and estimated propensity metadata.
+    scalar_res = run_repeated_outcome_msm(
+        df, :A, [:Y1, :Y2]; baseline = [:W], strata = :Age,
+        propensity = 0.5, folds = 2, learners = (:glm, :mean), rng = StableRNG(313),
+    )
+    @test scalar_res.propensity == fill(0.5, n)
+    @test scalar_res.propensity_metadata.source === :scalar
+    estimated_res = run_repeated_outcome_msm(
+        df, :A, [:Y1, :Y2]; baseline = [:W], strata = :Age,
+        folds = 2, learners = (:glm, :mean), rng = StableRNG(314),
+    )
+    @test estimated_res.propensity_metadata.estimated
+    @test estimated_res.propensity_metadata.source === :estimated
+
+    # Input-row-aligned vector is subset identically after complete-profile drop.
+    df_missing = copy(df)
+    df_missing.Y2 = Vector{Union{Missing, Float64}}(df_missing.Y2)
+    df_missing.Y2[7] = missing
+    vec_res = run_repeated_outcome_msm(
+        df_missing, :A, [:Y1, :Y2]; baseline = [:W], strata = :Age,
+        propensity = g, folds = 2, learners = (:glm, :mean), rng = StableRNG(315),
+    )
+    @test vec_res.n == n - 1
+    @test vec_res.propensity == g[setdiff(1:n, 7)]
+    @test_throws ArgumentError run_repeated_outcome_msm(
+        df, :A, [:Y1, :Y2]; baseline = [:W], strata = :Age,
+        propensity = g[1:end-1], folds = 2, learners = (:glm, :mean),
+    )
+    for bad in (0.0, 1.0, NaN, Inf)
+        @test_throws ArgumentError run_repeated_outcome_msm(
+            df, :A, [:Y1, :Y2]; baseline = [:W], strata = :Age,
+            propensity = bad, folds = 2, learners = (:glm, :mean),
+        )
+    end
+
+    # Cluster re-aggregation changes covariance, never the targeted profile.
+    cluster = repeat(1:48, inner = 2)
+    clustered = run_repeated_outcome_msm(
+        df, :A, [:Y1, :Y2, :Y3, :Y4]; baseline = [:W], strata = :Age,
+        propensity = g, cluster = cluster, folds = 3,
+        learners = (:glm, :mean), rng = StableRNG(312),
+    )
+    @test clustered.estimates ≈ age_res.estimates atol = 1e-12
+    @test clustered.covariance_kind === :cluster
+    @test clustered.covariance != age_res.covariance
+
+    # Unsupported cells and explicit empty categorical levels fail early.
+    one_arm = copy(df)
+    one_arm.A[age_raw .== "older"] .= 1.0
+    @test_throws ArgumentError run_repeated_outcome_msm(
+        one_arm, :A, [:Y1, :Y2]; baseline = [:W], strata = :Age,
+        propensity = g, folds = 2, learners = (:glm, :mean),
+    )
+    empty_level = copy(df)
+    empty_level.Age = categorical(age_raw; levels = ["older", "younger", "oldest"])
+    @test_throws ArgumentError run_repeated_outcome_msm(
+        empty_level, :A, [:Y1, :Y2]; baseline = [:W], strata = :Age,
+        propensity = g, folds = 2, learners = (:glm, :mean),
+    )
+
+    # Stratified parametric projection requires an explicit K*T-row design.
+    @test_throws ArgumentError run_parametric_repeated_msm(
+        df, :A, [:Y1, :Y2, :Y3, :Y4]; baseline = [:W], strata = :Age,
+        propensity = g, design = :linear_time, folds = 2,
+    )
+    D = hcat(ones(8), repeat(0.0:3.0, 2), repeat([1.0, 0.0], inner = 4))
+    projected = run_parametric_repeated_msm(
+        df, :A, [:Y1, :Y2, :Y3, :Y4]; baseline = [:W], strata = :Age,
+        propensity = g, design = D, folds = 2,
+        learners = (:glm, :mean), rng = StableRNG(316),
+    )
+    @test length(projected.fitted_tau) == 8
+    @test projected.strata.columns == [:Age]
+    mean_design = Matrix{Float64}(I, 16, 16)
+    mean_projected = run_parametric_repeated_msm(
+        df, :A, [:Y1, :Y2, :Y3, :Y4]; baseline = [:W], strata = :Age,
+        propensity = g, target = :mean, design = mean_design, folds = 2,
+        learners = (:glm, :mean), rng = StableRNG(317),
+    )
+    @test length(mean_projected.coefficients) == 16
+    @test length(mean_projected.fitted_tau) == 8
+end

@@ -70,7 +70,7 @@ end
 function _tau_msm_design(T::Int, design::AbstractMatrix{<:Real})
     X = Float64.(design)
     size(X, 1) == T || throw(ArgumentError(
-        "design matrix must have $T rows (one per outcome); got $(size(X, 1))",
+        "design matrix must have $T rows (one per unstructured parameter; K*T when stratified); got $(size(X, 1))",
     ))
     p = size(X, 2)
     names = [Symbol("β", j) for j in 1:p]
@@ -156,8 +156,7 @@ function _stack_mu_moments(un::NamedTuple)
         ic[:, 2t - 1] = ic0[:, t]
         ic[:, 2t] = ic1[:, t]
     end
-    Σ = (ic' * ic) ./ n^2
-    Σ = Matrix{Float64}(Symmetric(0.5 .* (Σ .+ Σ')))
+    Σ, _ = _msm_covariance_from_ic(ic; cluster = un.cluster)
     return μ, Σ, ic
 end
 
@@ -179,6 +178,10 @@ end
 Estimate a parametric MSM by GLS projection of the unstructured repeated-outcome
 IF estimates from [`run_repeated_outcome_msm`](@ref).
 
+`strata` and `propensity` are passed through to the unstructured fit. A
+stratified projection requires an explicit `K*T × p` design for `target=:tau`
+or `2*K*T × p` for `target=:mean`; symbolic T-row designs are rejected.
+
 Returns `(coefficients, se, covariance, coef_names, fitted_tau, design, target,
 outcomes, n, positivity, missingness, …)`.
 """
@@ -196,6 +199,8 @@ function run_parametric_repeated_msm(
     handle_missing::Symbol = :drop,
     estimator::Symbol = :tmle,
     cluster::Union{Nothing, Symbol, AbstractVector} = nothing,
+    strata = nothing,
+    propensity = nothing,
 )
     target in (:tau, :mean) || throw(ArgumentError(
         "target must be :tau or :mean; got :$target",
@@ -206,6 +211,13 @@ function run_parametric_repeated_msm(
         ))
     elseif design === :mean_treatment_time
         throw(ArgumentError("design=:mean_treatment_time requires target=:mean"))
+    end
+    if strata !== nothing && design isa Symbol
+        required_rows = target === :tau ? "K*T" : "2*K*T"
+        throw(ArgumentError(
+            "stratified parametric MSMs require a custom $required_rows × p design matrix; " *
+            "symbolic design :$design is ambiguous for a stacked stratum profile",
+        ))
     end
 
     un = run_repeated_outcome_msm(
@@ -218,11 +230,14 @@ function run_parametric_repeated_msm(
         handle_missing = handle_missing,
         estimator = estimator,
         cluster = cluster,
+        strata = strata,
+        propensity = propensity,
     )
     T = length(un.outcomes)
+    P = length(un.estimates)
 
     if target === :tau
-        X, coef_names, design_sym = _tau_msm_design(T, design)
+        X, coef_names, design_sym = _tau_msm_design(P, design)
         β, V, fitted = _gls_project(un.estimates, un.covariance, X)
         fitted_tau = fitted
     else
@@ -232,14 +247,14 @@ function run_parametric_repeated_msm(
             design_sym = :mean_treatment_time
         else
             X = Float64.(design)
-            size(X, 1) == 2T || throw(ArgumentError(
-                "mean design must have $(2T) rows; got $(size(X, 1))",
+            size(X, 1) == 2P || throw(ArgumentError(
+                "mean design must have $(2P) rows; got $(size(X, 1))",
             ))
             coef_names = [Symbol("β", j) for j in 1:size(X, 2)]
             design_sym = :custom
         end
-        β, V, _ = _gls_project(μ, Σμ, X)
-        fitted_tau = _fitted_tau_from_mean(β, T)
+        β, V, fitted_mean = _gls_project(μ, Σμ, X)
+        fitted_tau = [fitted_mean[2p] - fitted_mean[2p - 1] for p in 1:P]
     end
 
     se = sqrt.(diag(V))
@@ -256,6 +271,12 @@ function run_parametric_repeated_msm(
         outcomes = un.outcomes,
         n = un.n,
         positivity = un.positivity,
+        propensity_metadata = un.propensity_metadata,
+        parameter_index = [(
+            position = j, coefficient = coef_names[j], estimand = :msm_coefficient,
+        ) for j in eachindex(coef_names)],
+        unstructured_parameter_index = un.parameter_index,
+        strata = un.strata,
         cluster = un.cluster,
         covariance_kind = un.covariance_kind,
     ), un.missingness)
