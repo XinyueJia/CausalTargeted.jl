@@ -29,7 +29,7 @@ using Statistics
         end
     end
     data = DataFrame(rows)
-    model = fit(
+    model = MixedModels.fit(
         MixedModel,
         @formula(Y ~ 1 + A * time + W + (1 | id)),
         data;
@@ -107,7 +107,7 @@ using Statistics
             levels = string.(observation_times),
             ordered = true,
         )
-        categorical_model = fit(
+        categorical_model = MixedModels.fit(
             MixedModel,
             @formula(Y ~ 1 + A * time_category + W + (1 | id)),
             categorical_data;
@@ -155,7 +155,7 @@ using Statistics
             end
         end
         stratified_data = DataFrame(stratified_rows)
-        stratified_model = fit(
+        stratified_model = MixedModels.fit(
             MixedModel,
             @formula(
                 Y ~ 1 + Cohort * Treatment * Time + Marker * Time + (1 | Subject)
@@ -345,7 +345,7 @@ using Statistics
         )
         @test automatic.adjustment == [:W]
 
-        unadjusted_model = fit(
+        unadjusted_model = MixedModels.fit(
             MixedModel,
             @formula(Y ~ 1 + A * time + (1 | id)),
             data;
@@ -401,7 +401,7 @@ using Statistics
             end
         end
         nb_data = DataFrame(nb_rows)
-        nb_model = @test_logs (:warn, r"Results for families with a dispersion parameter") fit(
+        nb_model = @test_logs (:warn, r"Results for families with a dispersion parameter") MixedModels.fit(
             MixedModel,
             @formula(
                 Count ~ Cohort * Treatment * Time + Marker * Time + (1 | Subject)
@@ -637,7 +637,7 @@ using Statistics
         with_site = DataFrames.transform(
             data, :id => ByRow(x -> isodd(x) ? "a" : "b") => :site,
         )
-        crossed_model = fit(
+        crossed_model = MixedModels.fit(
             MixedModel,
             @formula(Y ~ 1 + A * time + W + (1 | id) + (1 | site)),
             with_site;
@@ -646,7 +646,7 @@ using Statistics
         @test_throws ArgumentError mixed_g_computation(crossed_model, with_site; common...)
 
         binary = DataFrames.transform(data, :Y => ByRow(>(median(data.Y))) => :binary)
-        glmm = fit(
+        glmm = MixedModels.fit(
             MixedModel,
             @formula(binary ~ 1 + A * time + W + (1 | id)),
             binary,

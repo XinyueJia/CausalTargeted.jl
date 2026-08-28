@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`run_discrete_lmtp_contrast`:** static arm contrast (e.g. SS vs R) from two
+  discrete LMTP fits ([#28](https://github.com/SimonAB/CausalTargeted.jl/issues/28)).
+- **Apodemus panel stress:** `docs/stress/apodemus_panel_stress.qmd` (synthetic
+  default; optional private data via `APODEMUS_CAUSAL_HOME`).
+- Regression tests: three-arm cross-fold fixture ([#31](https://github.com/SimonAB/CausalTargeted.jl/issues/31)),
+  `DiscreteTimeCDM` → discrete LMTP recovery ([#33](https://github.com/SimonAB/CausalTargeted.jl/issues/33)).
+
+### Fixed
+
+- **`test_mixedmodels.jl`:** qualify `MixedModels.fit` to avoid ambiguity with MLJ
+  exports (Julia 1.12 CI).
+
 - **Optional MixedModels / profiled-NB2 backend** (`CausalTargetedMixedModelsExt`):
   `fit_profiled_nb2`, `mixed_g_computation`, and related types for
   static-treatment repeated-outcome standardised contrasts (Gaussian LMM,

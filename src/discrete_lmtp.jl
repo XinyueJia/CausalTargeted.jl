@@ -361,6 +361,7 @@ function run_discrete_lmtp(
     trunc::Real = 10.0,
     epochs::Int = 3,
     handle_missing::Symbol = :drop,
+    cluster::Union{Nothing, Symbol, AbstractVector} = nothing,
 )
     density_ratio === :classification || throw(ArgumentError(
         "categorical treatment LMTP requires density_ratio=:classification " *
@@ -398,6 +399,17 @@ function run_discrete_lmtp(
         targeting_weight = 1.0,
         epochs = epochs,
     )
+    cluster_ids = resolve_cluster_ids(data_clean, cluster, n)
+    if cluster_ids !== nothing
+        var = cluster_robust_variance(result.ic; cluster = cluster_ids)
+        se = sqrt(max(var, 0.0))
+        lwr, upr = wald_ci(result.estimate, se)
+        result = merge(result, (;
+            se = se, lower = lwr, upper = upr,
+            covariance_kind = :cluster,
+            cluster = cluster_ids,
+        ))
+    end
     if _uses_ipcw_weights(ipcw_w)
         ic_uncent = result.ic .+ result.estimate
         s = weighted_influence_summary(ic_uncent, ipcw_w)
@@ -414,6 +426,71 @@ function run_discrete_lmtp(
     )), miss.meta)
 end
 
+"""
+    run_discrete_lmtp_contrast(
+        df, trt, outcome;
+        arm_hi, arm_ref, levels, kwargs...
+    ) -> NamedTuple
+
+Difference `E[Y|do(arm_hi)] - E[Y|do(arm_ref)]` from two static discrete LMTP
+fits. Standard errors use the independent-contrast approximation
+``\\sqrt{\\mathrm{se}_{hi}^2 + \\mathrm{se}_{ref}^2}`` (conservative when folds
+overlap). Remaining `kwargs` are forwarded to [`run_discrete_lmtp`](@ref).
+"""
+function run_discrete_lmtp_contrast(
+    df::DataFrame,
+    trt::Symbol,
+    outcome::Symbol;
+    arm_hi,
+    arm_ref,
+    levels,
+    baseline::Vector{Symbol} = Symbol[],
+    folds::Int = 3,
+    rng = StableRNG(1),
+    learners_outcome = DEFAULT_SL_LEARNERS,
+    learners_trt = (:logistic, :mean),
+    density_ratio::Symbol = :classification,
+    estimator::Symbol = :tmle,
+    trunc::Real = 10.0,
+    epochs::Int = 3,
+    handle_missing::Symbol = :drop,
+    cluster::Union{Nothing, Symbol, AbstractVector} = nothing,
+)
+    levels_vec = collect(levels)
+    pol_hi = discrete_static_policy(arm_hi; levels = levels_vec)
+    pol_ref = discrete_static_policy(arm_ref; levels = levels_vec)
+    shared = (;
+        baseline, folds, rng, learners_outcome, learners_trt,
+        density_ratio, estimator, trunc, epochs, handle_missing, cluster,
+    )
+    res_hi = run_discrete_lmtp(
+        df, trt, outcome;
+        policy = pol_hi,
+        shared...,
+    )
+    res_ref = run_discrete_lmtp(
+        df, trt, outcome;
+        policy = pol_ref,
+        shared...,
+    )
+    est = res_hi.estimate - res_ref.estimate
+    se = sqrt(res_hi.se^2 + res_ref.se^2)
+    lwr, upr = wald_ci(est, se)
+    pos_ok = res_hi.positivity.ok && res_ref.positivity.ok
+    return (;
+        estimate = est,
+        se = se,
+        lower = lwr,
+        upper = upr,
+        arm_hi = arm_hi,
+        arm_ref = arm_ref,
+        contrast = string(arm_hi, "_vs_", arm_ref),
+        hi = res_hi,
+        ref = res_ref,
+        positivity = (ok = pos_ok, hi = res_hi.positivity, ref = res_ref.positivity),
+    )
+end
+
 export DiscreteTreatmentPolicy, DiscreteInterventionalMean
 export discrete_recode_policy, discrete_static_policy, discrete_shift_policy
-export apply_discrete_policy, run_discrete_lmtp, discrete_positivity
+export apply_discrete_policy, run_discrete_lmtp, run_discrete_lmtp_contrast, discrete_positivity

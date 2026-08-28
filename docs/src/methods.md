@@ -159,7 +159,9 @@ classifiers stay on `:invmse`. Categorical
 outcomes use `family=:multinomial` (convex combination of class-probability
 matrices; sl3 `loss_loglik_multinomial`). Categorical *treatments* in LMTP use
 `run_discrete_lmtp` with Díaz–Williams classification density ratios, not a
-multinomial propensity. Multi-time factor recodes use the same policies on
+multinomial propensity. Arm contrasts (e.g. SS vs R) can use
+`run_discrete_lmtp_contrast`, which fits two static policies and differences
+the estimates (independent SE approximation). Multi-time factor recodes use the same policies on
 `run_sequential_lmtp`. Optional MLJ / MLP candidates are
 **opt-in**: they can improve recovery on some DGPs in a single synthetic draw while diluting
 others (overfitting vs generalisation). Prefer repeated Monte Carlo and library ablations before

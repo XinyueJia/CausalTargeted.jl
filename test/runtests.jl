@@ -3,7 +3,8 @@ import CausalDynamics
 using CausalDynamics:
     identify, TotalEffectQuery, TemporalEffectQuery, InterventionalPolicyQuery,
     TemporalDAGSpec, LaggedEdge,
-    unroll_temporal_dag, DiscreteTimeCDM, intervention_value
+    unroll_temporal_dag, DiscreteTimeCDM, intervention_value, panel_column_name,
+    simulate, do_sequence
 using DataFrames
 using CategoricalArrays
 using Dates

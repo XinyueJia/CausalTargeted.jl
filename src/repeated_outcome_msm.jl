@@ -527,19 +527,7 @@ end
 Normalise `cluster` kwarg to a length-`n` vector of ids (or `nothing`).
 """
 function _resolve_cluster_ids(df::DataFrame, cluster, n::Int)
-    if cluster === nothing
-        return nothing
-    elseif cluster isa Symbol
-        hasproperty(df, cluster) || throw(ArgumentError(
-            "cluster column :$cluster not found in analysis frame",
-        ))
-        return collect(df[!, cluster])
-    else
-        length(cluster) == n || throw(ArgumentError(
-            "cluster vector length $(length(cluster)) must match analysis n=$n",
-        ))
-        return collect(cluster)
-    end
+    return resolve_cluster_ids(df, cluster, n)
 end
 
 """
