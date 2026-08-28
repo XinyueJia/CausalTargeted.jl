@@ -1,0 +1,147 @@
+---
+title: "Apodemus panel path (private stress)"
+engine: julia
+execute:
+  warning: false
+  daemon: false
+---
+
+## Overview
+
+Local stress check for the **Apodemus panel path** epic
+([CausalDynamics#20](https://github.com/SimonAB/CausalDynamics.jl/issues/20)):
+identification → wide columns → discrete LMTP contrasts.
+
+**Privacy:** this notebook never commits study data. Set `APODEMUS_CAUSAL_HOME`
+to your local `Apodemus-superspreaders/Causal_models` checkout; if unset or
+data are missing, a **synthetic** three-arm panel is used instead.
+
+```{julia}
+#| label: chunk-apodemus-stress-env
+#| warning: false
+
+using Pkg
+const PKG_ROOT = normpath(joinpath(@__DIR__, "..", ".."))
+const BOOK_ROOT = normpath(joinpath(PKG_ROOT, "..", ".."))
+if isfile(joinpath(BOOK_ROOT, "Project.toml"))
+    Pkg.activate(BOOK_ROOT)
+else
+    Pkg.activate(joinpath(PKG_ROOT, "docs"))
+end
+Pkg.instantiate()
+```
+
+```{julia}
+#| label: chunk-apodemus-stress-setup
+#| warning: false
+
+using CausalDynamics
+using CausalDynamics:
+    TemporalDAGSpec, LaggedEdge, unroll_temporal_dag, TemporalEffectQuery,
+    plan_targeted_estimation, panel_column_name
+using CausalTargeted
+using DataFrames
+using Random
+using StableRNGs
+using Statistics
+
+const APODEMUS_HOME = get(ENV, "APODEMUS_CAUSAL_HOME", "")
+const ARMS = ["R", "SS", "SC"]
+const CONTRASTS = [("SS", "R"), ("SC", "R")]
+
+function synthetic_apodemus_wide(n::Int, T::Int, rng)
+    arms = rand(rng, ARMS, n)
+    cols = Dict{Symbol, Vector{Any}}(
+        :mouse_id => string.(1:n),
+        :grid_type => arms,
+    )
+    for t in 1:T
+        col = panel_column_name(:fec, t)
+        effect = 0.25 .* (arms .== "SS") .- 0.08 .* (arms .== "SC")
+        cols[col] = effect .+ 0.05 .* randn(rng, n)
+    end
+    return DataFrame(cols)
+end
+
+function load_apodemus_wide(T::Int; sex::Symbol = :male)
+    if !isempty(APODEMUS_HOME)
+        apodemus_src = joinpath(APODEMUS_HOME, "src", "ApodemusCausal.jl")
+        if isfile(apodemus_src)
+            try
+                include(apodemus_src)
+                return ApodemusCausal.load_sentinel_wide(T; sex = sex), :private
+            catch err
+                @warn "Private Apodemus load failed; using synthetic panel" exception = err
+            end
+        end
+    end
+    return synthetic_apodemus_wide(62, T, StableRNG(20260828)), :synthetic
+end
+```
+
+```{julia}
+#| label: chunk-apodemus-stress-planner
+#| warning: false
+
+T = 4
+wide, data_source = load_apodemus_wide(T)
+@info "Panel source" data_source nrow(wide)
+
+spec = TemporalDAGSpec(
+    [:grid_type, :fec],
+    [LaggedEdge(:grid_type, :fec, 0)],
+)
+u = unroll_temporal_dag(spec, T)
+query = TemporalEffectQuery(:grid_type, :fec, 2, 2)
+plan = plan_targeted_estimation(
+    u, query, propertynames(wide);
+    unit_level = [:grid_type],
+)
+@info "Estimation plan" plan.engine plan.treatment plan.outcome plan.baseline
+@assert plan.engine === :discrete_lmtp
+@assert plan.treatment === :grid_type
+@assert plan.outcome === panel_column_name(:fec, 2)
+```
+
+```{julia}
+#| label: chunk-apodemus-stress-contrasts
+#| warning: false
+
+out_col = plan.outcome
+sub = dropmissing(wide, [:grid_type, out_col])
+opts = recommend_run_options(nrow(sub); engine = :lmtp)
+rows = NamedTuple[]
+for (arm_hi, arm_ref) in CONTRASTS
+    res = run_discrete_lmtp_contrast(
+        sub, :grid_type, out_col;
+        arm_hi = arm_hi,
+        arm_ref = arm_ref,
+        levels = ARMS,
+        baseline = Symbol[],
+        folds = opts.folds,
+        learners_outcome = opts.learners_outcome,
+        learners_trt = (:logistic, :mean),
+        rng = StableRNG(20260828),
+    )
+    push!(
+        rows,
+        (;
+            contrast = res.contrast,
+            estimate = res.estimate,
+            se = res.se,
+            n = nrow(sub),
+            positivity_ok = res.positivity.ok,
+            source = data_source,
+        ),
+    )
+end
+result_df = DataFrame(rows)
+result_df
+```
+
+## Pass criteria
+
+- Planner selects `:discrete_lmtp` with `:grid_type` → `:fec2` (session 2).
+- Both arm contrasts return finite estimates and SEs under cross-fitting.
+- Positivity holds on the synthetic fixture; private runs may flag sparse arms
+  (inspect `positivity_ok` only, do not print row-level data).

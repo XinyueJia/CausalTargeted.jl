@@ -3,7 +3,8 @@ import CausalDynamics
 using CausalDynamics:
     identify, TotalEffectQuery, TemporalEffectQuery, InterventionalPolicyQuery,
     TemporalDAGSpec, LaggedEdge,
-    unroll_temporal_dag, DiscreteTimeCDM, intervention_value
+    unroll_temporal_dag, DiscreteTimeCDM, intervention_value, panel_column_name,
+    simulate, do_sequence
 using DataFrames
 using CategoricalArrays
 using Dates
@@ -46,4 +47,9 @@ const _HAS_PANEL_API = isdefined(CausalDynamics, :simulate_panel)
     include("test_tree_learners.jl")
     # Load Makie only after the façade-unavailable assertion in this file.
     include("test_mtp_plotting.jl")
+    # MixedModels extension (optional parametric LMM / NB2 / mixed g-computation).
+    using FastGaussQuadrature, NLopt, SpecialFunctions, MixedModels, QuadGK
+    @test Base.get_extension(CausalTargeted, :CausalTargetedMixedModelsExt) !== nothing
+    include("test_mixedmodels.jl")
+    include("test_profiled_nb2.jl")
 end
