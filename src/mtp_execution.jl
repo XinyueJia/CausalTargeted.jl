@@ -173,6 +173,45 @@ function execute_estimand(
             positivity_ok = res.positivity.ok,
             stratum = "full_population",
         )])
+    elseif estimand isa TwoPartInterventionalMean
+        allowed = (
+            :folds, :rng, :learners_outcome, :learners_trt, :density_ratio,
+            :estimator, :trunc, :epochs, :handle_missing, :cluster,
+            :family_presence, :family_intensity,
+        )
+        tp_kw = (; (p.first => p.second for p in pairs(kwargs) if p.first in allowed)...)
+        res = run_two_part_discrete_lmtp(
+            data, estimand.trt;
+            presence = estimand.presence,
+            intensity = estimand.intensity,
+            policy = estimand.policy,
+            baseline = estimand.adjustment,
+            tp_kw...,
+        )
+        DataFrame([
+            (
+                delta = NaN,
+                estimand = "presence",
+                est = res.presence.estimate,
+                se = res.presence.se,
+                lwr = res.presence.lower,
+                upr = res.presence.upper,
+                n_changed = res.presence.n_changed,
+                positivity_ok = res.presence.positivity.ok,
+                stratum = "full_population",
+            ),
+            (
+                delta = NaN,
+                estimand = "intensity",
+                est = res.intensity.estimate,
+                se = res.intensity.se,
+                lwr = res.intensity.lower,
+                upr = res.intensity.upper,
+                n_changed = res.intensity.n_changed,
+                positivity_ok = res.intensity.positivity.ok,
+                stratum = "full_population",
+            ),
+        ])
     elseif estimand isa RepeatedOutcomeMSM
         allowed = (
             :folds, :rng, :learners, :learners_outcome, :learners_trt,

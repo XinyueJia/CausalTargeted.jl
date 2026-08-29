@@ -40,6 +40,7 @@ include("synthetic.jl")
 include("targeting_diagnostics.jl")
 include("lmtp_tmle.jl")
 include("discrete_lmtp.jl")
+include("two_part_discrete_lmtp.jl")
 include("fold_nuisance_cache.jl")
 include("positivity.jl")
 include("missing_data.jl")
@@ -68,12 +69,13 @@ include("hurdle_ci_tests.jl")
 
 export ShiftPolicy, Estimand
 export InterventionalMean, MediationContrast, LongitudinalPolicy, ScalarMediation
-export DiscreteTreatmentPolicy, DiscreteInterventionalMean
+export DiscreteTreatmentPolicy, DiscreteInterventionalMean, TwoPartInterventionalMean
 export RepeatedOutcomeMSM, run_repeated_outcome_msm, msm_contrast, identify_repeated_outcomes
 export ParametricRepeatedOutcomeMSM, run_parametric_repeated_msm
 export unstack_repeated_outcomes
 export discrete_recode_policy, discrete_static_policy, discrete_shift_policy
-export apply_discrete_policy, run_discrete_lmtp, discrete_positivity
+export apply_discrete_policy, run_discrete_lmtp, run_discrete_lmtp_contrast, discrete_positivity
+export run_two_part_discrete_lmtp, run_two_part_discrete_lmtp_contrast
 export SequentialPolicy, SurvivalPolicy
 export shift_policy_from_settings, estimand_engine, estimand_from_query
 export additive_shift_policy, multiplicative_shift_policy, threshold_shift_policy
