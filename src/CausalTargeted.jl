@@ -64,6 +64,7 @@ include("lmtp_contrast.jl")
 include("synthetic_recovery.jl")
 include("mediation_compat.jl")
 include("mtp_plotting.jl")
+include("hurdle_ci_tests.jl")
 
 export ShiftPolicy, Estimand
 export InterventionalMean, MediationContrast, LongitudinalPolicy, ScalarMediation
@@ -123,5 +124,7 @@ export mediation_n_mc_sweep, mediation_stability_summary, mediation_stability_ma
 export positivity_report, positivity_markdown, attach_positivity_summary!
 export tipping_point_bias, partial_r2_calibration, sensitivity_report, sensitivity_markdown
 export adjustment_set_disagreement, discovery_adjustment_sensitivity, merge_discovery_sensitivity!
+export IndependenceStatement, local_markov_statements, default_hurdle_label_to_col
+export test_implied_hurdle_independences
 
 end

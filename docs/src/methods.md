@@ -286,6 +286,27 @@ Rosenbaum (2002) sensitivity models.
 
 **Never** silently replace a user DAG with a discovery graph in production defaults.
 
+## Hurdle CI testing
+
+Zero-inflated biological outcomes are often operationalised as a **two-part
+hurdle**: presence ``I(Y > 0)`` and log intensity among positives. Gaussian
+partial correlation on ``\log(1 + Y)`` is misspecified for faithfulness checks
+on those nodes.
+
+Use partial correlation for continuous block variables. Use
+[`test_implied_hurdle_independences`](@ref) when a statement involves a
+hurdle-split node (binomial presence GLM; Gaussian intensity GLM among
+positives). String / categorical predictors (e.g. `grid_type`) use StatsModels
+`DummyCoding`, aligned with discrete LMTP ([#34](https://github.com/SimonAB/CausalTargeted.jl/issues/34))
+and two-part LMTP ([#35](https://github.com/SimonAB/CausalTargeted.jl/issues/35)).
+
+```julia
+results = test_implied_hurdle_independences(
+    statements, df,
+    Dict(:fec => (:fec_bin, :fec_intensity), :eimeria => (:eimeria_bin, :eimeria_intensity)),
+)
+```
+
 ## Identification certificates (CausalDynamics bridge)
 
 Estimation attaches provenance via `identification_certificate` / `attach_run_metadata!`.

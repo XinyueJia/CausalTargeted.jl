@@ -46,4 +46,5 @@ const _HAS_PANEL_API = isdefined(CausalDynamics, :simulate_panel)
     include("test_tree_learners.jl")
     # Load Makie only after the façade-unavailable assertion in this file.
     include("test_mtp_plotting.jl")
+    include("test_hurdle_ci.jl")
 end

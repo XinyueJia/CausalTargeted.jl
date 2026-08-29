@@ -72,6 +72,7 @@ baseline types.
 - `plan_mtp` · `summarise_plan` · `execute_estimand` · `estimand_from_query`
 - `identification_certificate` · `certificate_dict`
 - `build_run_metadata` · `attach_run_metadata!`
+- `test_implied_hurdle_independences` · `local_markov_statements` · `IndependenceStatement`
 
 ```@docs
 CausalTargeted
