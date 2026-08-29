@@ -159,7 +159,24 @@ classifiers stay on `:invmse`. Categorical
 outcomes use `family=:multinomial` (convex combination of class-probability
 matrices; sl3 `loss_loglik_multinomial`). Categorical *treatments* in LMTP use
 `run_discrete_lmtp` with Díaz–Williams classification density ratios, not a
-multinomial propensity. Multi-time factor recodes use the same policies on
+multinomial propensity. Arm contrasts (e.g. SS vs R) can use
+`run_discrete_lmtp_contrast`, which fits two static policies and differences
+the estimates (independent SE approximation). For binary presence outcomes
+(`Y ∈ {0,1}`), pass `family_outcome = :binomial` so outcome nuisances use
+logistic Super Learner fits rather than the default Gaussian location model:
+
+```julia
+run_discrete_lmtp_contrast(
+    df, :arm, :infected;
+    arm_hi = "SS", arm_ref = "R", levels = ["R", "SS", "SC"],
+    baseline = [:weight],
+    family_outcome = :binomial,
+    learners_outcome = (:glm, :mean),
+)
+```
+
+The same `family_outcome` keyword is forwarded by `run_lmtp_grid` and
+`run_discrete_lmtp`. Multi-time factor recodes use the same policies on
 `run_sequential_lmtp`. Optional MLJ / MLP candidates are
 **opt-in**: they can improve recovery on some DGPs in a single synthetic draw while diluting
 others (overfitting vs generalisation). Prefer repeated Monte Carlo and library ablations before

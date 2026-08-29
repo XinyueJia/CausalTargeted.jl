@@ -48,6 +48,7 @@ function fit_outcome_regression(
     folds::Int,
     rng::AbstractRNG;
     learners = DEFAULT_SL_LEARNERS,
+    family::Symbol = :gaussian,
 )
     n = nrow(df)
     y = Float64.(df[!, outcome])
@@ -59,7 +60,9 @@ function fit_outcome_regression(
     for test_idx in fold_sets
         train_idx = setdiff(1:n, test_idx)
         Xtr = outcome_design_matrix(W[train_idx, :], a[train_idx])
-        push!(models, fit_super_learner(Xtr, y[train_idx]; learners = learners, rng = rng))
+        push!(models, fit_super_learner(
+            Xtr, y[train_idx]; learners = learners, family = family, rng = rng,
+        ))
     end
     return OutcomeRegression(treatment, covariates, Tuple(learners), models, fold_sets, W)
 end

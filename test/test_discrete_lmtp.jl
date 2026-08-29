@@ -116,3 +116,192 @@
     @test occursin("run_discrete_lmtp", sprint(showerror, err))
     @test occursin("policies", sprint(showerror, err))
 end
+
+@testset "Apodemus-style three-arm discrete LMTP fixture" begin
+    # Synthetic R / SS / SC panel: small n, imbalanced arms, cross-fitted folds.
+    rng = StableRNG(61)
+    n = 54
+    arms = ["R", "SS", "SC"]
+    A = vcat(fill("R", 26), fill("SS", 3), fill("SC", 25))
+    Random.shuffle!(rng, A)
+    df = DataFrame(
+        mouse_id = string.(1:n),
+        grid_type = A,
+        fec2 = 0.3 .* (A .== "SS") .- 0.1 .* (A .== "SC") .+ 0.05 .* randn(rng, n),
+    )
+    opts = recommend_run_options(n; engine = :lmtp)
+    contrast = run_discrete_lmtp_contrast(
+        df, :grid_type, :fec2;
+        arm_hi = "SS",
+        arm_ref = "R",
+        levels = arms,
+        baseline = Symbol[],
+        folds = opts.folds,
+        learners_outcome = opts.learners_outcome,
+        learners_trt = (:logistic, :mean),
+        rng = StableRNG(62),
+    )
+    @test contrast.contrast == "SS_vs_R"
+    @test isfinite(contrast.estimate)
+    @test isfinite(contrast.se)
+    @test contrast.se > 0
+    @test contrast.positivity.ok
+    @test contrast.hi.estimate - contrast.ref.estimate ≈ contrast.estimate
+end
+
+@testset "discrete LMTP cross-fold treatment levels" begin
+    # Apodemus-style: three arms, small n; training folds may omit an arm seen at validation.
+    rng = StableRNG(42)
+    n = 60
+    arms = ["R", "SS", "SC"]
+    A = vcat(fill("R", 28), fill("SS", 4), fill("SC", 28))
+    Random.shuffle!(rng, A)
+    df = DataFrame(W = randn(rng, n), A = A, Y = randn(rng, n))
+    policy = discrete_static_policy("SS"; levels = arms)
+    est = run_discrete_lmtp(
+        df, :A, :Y;
+        policy = policy,
+        baseline = [:W],
+        folds = 5,
+        learners_outcome = (:glm, :mean),
+        learners_trt = (:logistic, :mean),
+        rng = rng,
+    )
+    @test isfinite(est.estimate)
+    @test isfinite(est.se)
+end
+
+@testset "DiscreteTimeCDM → discrete LMTP recovery" begin
+    rng = StableRNG(99)
+    T = 4
+    truth_effect = 0.5
+    cdm = DiscreteTimeCDM(
+        [:grid_type, :fec];
+        initialise = (rng) -> (grid_type = 0.0, fec = 0.0),
+        sample_noise = (rng, state, t) -> (u_g = 0.0, u_f = randn(rng)),
+        step = (state, t, noise, intervention) -> begin
+            g = intervention_value(intervention, :grid_type, t, state.grid_type)
+            fec = 0.2 * g + noise.u_f
+            if t >= 2 && g == 1.0
+                fec = fec + truth_effect
+            end
+            (grid_type = g, fec = fec)
+        end,
+    )
+    n = 200
+    arms = rand(rng, 0:1, n)
+    rows = NamedTuple[]
+    for i in 1:n
+        gcode = Float64(arms[i])
+        intervention = do_sequence(:grid_type, fill(gcode, T))
+        traj = simulate(cdm, T; rng = rng, intervention = intervention)
+        arm = gcode == 0.0 ? "R" : "SS"
+        nt = (mouse_id = string(i), grid_type = arm)
+        for t in 1:T
+            c = panel_column_name(:fec, t)
+            nt = merge(nt, NamedTuple{(c,)}((traj.series[:fec][t],)))
+        end
+        push!(rows, nt)
+    end
+    df = DataFrame(rows)
+    col = panel_column_name(:fec, 2)
+    res = run_discrete_lmtp_contrast(
+        df, :grid_type, col;
+        arm_hi = "SS",
+        arm_ref = "R",
+        levels = ["R", "SS"],
+        baseline = Symbol[],
+        folds = 3,
+        learners_outcome = SMALL_N_SL_LEARNERS,
+        rng = StableRNG(100),
+    )
+    @test isfinite(res.estimate)
+    @test abs(res.estimate - truth_effect) < 0.30
+end
+
+@testset "binary presence outcome family_outcome (#34)" begin
+    rng = StableRNG(1)
+    n = 300
+    df = DataFrame(
+        arm = rand(rng, ["R", "SS", "SC"], n),
+        weight = randn(rng, n),
+    )
+    logit_p = @. -1.0 + 0.8 * (df.arm == "SS") + 0.1 * df.weight
+    p = 1.0 ./ (1.0 .+ exp.(-logit_p))
+    df.infected = Float64.(rand(rng, n) .< p)
+    shared = (;
+        arm_hi = "SS",
+        arm_ref = "R",
+        levels = ["R", "SS", "SC"],
+        baseline = [:weight],
+        folds = 3,
+        learners_outcome = (:glm, :mean),
+        rng = StableRNG(2),
+    )
+    res_bin = run_discrete_lmtp_contrast(
+        df, :arm, :infected;
+        family_outcome = :binomial,
+        shared...,
+    )
+    res_gau = run_discrete_lmtp_contrast(
+        df, :arm, :infected;
+        family_outcome = :gaussian,
+        shared...,
+    )
+    @test res_bin.estimate > 0.1
+    @test res_bin.estimate > res_gau.estimate + 0.02
+    @test abs(res_bin.estimate - res_gau.estimate) > 0.02
+
+    df_bad = copy(df)
+    df_bad.infected = rand(rng, n)
+    @test_throws ArgumentError run_discrete_lmtp_contrast(
+        df_bad, :arm, :infected;
+        family_outcome = :binomial,
+        shared...,
+    )
+
+    infected_miss = Vector{Union{Float64, Missing}}(df.infected)
+    infected_miss[1:30] .= missing
+    df_ipcw = copy(df)
+    df_ipcw.infected = infected_miss
+    res_ipcw = run_discrete_lmtp_contrast(
+        df_ipcw, :arm, :infected;
+        family_outcome = :binomial,
+        handle_missing = :ipcw,
+        shared...,
+    )
+    @test isfinite(res_ipcw.estimate)
+    @test res_ipcw.estimate > res_gau.estimate
+end
+
+@testset "discrete LMTP cluster-robust SE" begin
+    rng = StableRNG(71)
+    n = 80
+    cluster = repeat(1:20; inner=4)
+    arms = rand(rng, ["R", "SS"], n)
+    df = DataFrame(
+        unit_id = cluster,
+        grid_type = arms,
+        Y = randn(rng, n) .+ 0.2 .* (arms .== "SS"),
+    )
+    res_unit = run_discrete_lmtp(
+        df, :grid_type, :Y;
+        policy = discrete_static_policy("SS"; levels = ["R", "SS"]),
+        baseline = Symbol[],
+        folds = 2,
+        learners_outcome = (:glm, :mean),
+        rng = StableRNG(72),
+    )
+    res_cluster = run_discrete_lmtp(
+        df, :grid_type, :Y;
+        policy = discrete_static_policy("SS"; levels = ["R", "SS"]),
+        baseline = Symbol[],
+        folds = 2,
+        learners_outcome = (:glm, :mean),
+        cluster = :unit_id,
+        rng = StableRNG(72),
+    )
+    @test res_cluster.covariance_kind == :cluster
+    @test res_cluster.se > 0
+    @test res_unit.se > 0
+end

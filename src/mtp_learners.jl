@@ -945,6 +945,20 @@ function _validate_binary_outcome(y::AbstractVector{<:Real})
     return nothing
 end
 
+"""
+    validate_family_outcome(y, family) -> nothing
+
+Check that `family` is a supported Super Learner outcome family and that
+`:binomial` outcomes lie in ``\\{0, 1\\}``.
+"""
+function validate_family_outcome(y::AbstractVector, family::Symbol)
+    family in (:gaussian, :binomial, :multinomial) || throw(ArgumentError(
+        "family_outcome must be :gaussian, :binomial, or :multinomial; got $family",
+    ))
+    family === :binomial && _validate_binary_outcome(collect(Float64, y))
+    return nothing
+end
+
 """Trim a probability matrix and return its elementwise logits."""
 function _trim_logit_predictions(
     Z::AbstractMatrix{<:Real};

@@ -194,6 +194,7 @@ function _shared_fold_lmtp_components(
     folds::Int,
     rng;
     learners_outcome = DEFAULT_SL_LEARNERS,
+    family_outcome::Symbol = :gaussian,
     density_ratio::Symbol = :gaussian,
     learners_trt = DEFAULT_SL_LEARNERS,
     trunc::Real = 10.0,
@@ -226,7 +227,10 @@ function _shared_fold_lmtp_components(
         test = df[test_idx, :]
 
         Xtr = design_matrix(covariate_schema, train; treatment = trt)
-        sl_y = fit_super_learner(Xtr, y[train_idx]; learners = learners_outcome, rng = rng)
+        sl_y = fit_super_learner(
+            Xtr, y[train_idx];
+            learners = learners_outcome, family = family_outcome, rng = rng,
+        )
 
         Q_obs[test_idx] = predict_super_learner(
             sl_y,
@@ -372,6 +376,7 @@ function lmtp_tmle_contrast(
     folds::Int,
     rng;
     learners_outcome = DEFAULT_SL_LEARNERS,
+    family_outcome::Symbol = :gaussian,
     learners_trt = DEFAULT_SL_LEARNERS,
     density_ratio::Symbol = :gaussian,
     estimator::Symbol = :tmle,
@@ -388,6 +393,7 @@ function lmtp_tmle_contrast(
     c = _shared_fold_lmtp_components(
         df, trt, outcome, covariates, a_policy, a_reference, folds, rng;
         learners_outcome = learners_outcome,
+        family_outcome = family_outcome,
         density_ratio = density_ratio,
         learners_trt = learners_trt,
         trunc = trunc,
@@ -518,6 +524,7 @@ function lmtp_tmle_policy_mean(
     folds::Int,
     rng;
     learners_outcome = DEFAULT_SL_LEARNERS,
+    family_outcome::Symbol = :gaussian,
     learners_trt = DEFAULT_SL_LEARNERS,
     density_ratio::Symbol = :gaussian,
     estimator::Symbol = :tmle,
@@ -528,6 +535,7 @@ function lmtp_tmle_policy_mean(
     c = _shared_fold_lmtp_components(
         df, trt, outcome, covariates, a_policy, a_ref, folds, rng;
         learners_outcome = learners_outcome,
+        family_outcome = family_outcome,
         density_ratio = density_ratio,
         learners_trt = learners_trt,
         trunc = trunc,
