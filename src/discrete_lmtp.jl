@@ -179,7 +179,10 @@ function _fit_discrete_density_ratio(
     rng = StableRNG(1),
 )
     n = length(a_obs)
-    schema = _fit_treatment_schema(a_obs, a_policy, levels)
+    # Pad with canonical levels so cross-fold schemas include unseen arms.
+    padded_obs = vcat(collect(a_obs), string.(levels))
+    padded_pol = vcat(collect(a_policy), string.(levels))
+    schema = _fit_treatment_schema(padded_obs, padded_pol, levels)
     W_tr = vcat(W, W)
     S_tr = vcat(ones(n), zeros(n))
     X_tr = _discrete_ratio_design(
@@ -363,6 +366,7 @@ function run_discrete_lmtp(
     trunc::Real = 10.0,
     epochs::Int = 3,
     handle_missing::Symbol = :drop,
+    cluster::Union{Nothing, Symbol, AbstractVector} = nothing,
 )
     density_ratio === :classification || throw(ArgumentError(
         "categorical treatment LMTP requires density_ratio=:classification " *
@@ -402,6 +406,17 @@ function run_discrete_lmtp(
         targeting_weight = 1.0,
         epochs = epochs,
     )
+    cluster_ids = resolve_cluster_ids(data_clean, cluster, n)
+    if cluster_ids !== nothing
+        var = cluster_robust_variance(result.ic; cluster = cluster_ids)
+        se = sqrt(max(var, 0.0))
+        lwr, upr = wald_ci(result.estimate, se)
+        result = merge(result, (;
+            se = se, lower = lwr, upper = upr,
+            covariance_kind = :cluster,
+            cluster = cluster_ids,
+        ))
+    end
     if _uses_ipcw_weights(ipcw_w)
         ic_uncent = result.ic .+ result.estimate
         s = weighted_influence_summary(ic_uncent, ipcw_w)
@@ -417,7 +432,6 @@ function run_discrete_lmtp(
         n_changed = count(string.(a) .!= string.(a_policy)),
     )), miss.meta)
 end
-
 
 """
     run_discrete_lmtp_contrast(
@@ -487,4 +501,4 @@ end
 
 export DiscreteTreatmentPolicy, DiscreteInterventionalMean
 export discrete_recode_policy, discrete_static_policy, discrete_shift_policy
-export apply_discrete_policy, run_discrete_lmtp, discrete_positivity
+export apply_discrete_policy, run_discrete_lmtp, run_discrete_lmtp_contrast, discrete_positivity

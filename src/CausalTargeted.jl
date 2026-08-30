@@ -39,6 +39,7 @@ include("nuisance_interface.jl")
 include("synthetic.jl")
 include("targeting_diagnostics.jl")
 include("lmtp_tmle.jl")
+include("cluster_robust.jl")
 include("discrete_lmtp.jl")
 include("two_part_discrete_lmtp.jl")
 include("fold_nuisance_cache.jl")
@@ -66,6 +67,7 @@ include("synthetic_recovery.jl")
 include("mediation_compat.jl")
 include("mtp_plotting.jl")
 include("hurdle_ci_tests.jl")
+include("mixedmodels.jl")
 
 export ShiftPolicy, Estimand
 export InterventionalMean, MediationContrast, LongitudinalPolicy, ScalarMediation
