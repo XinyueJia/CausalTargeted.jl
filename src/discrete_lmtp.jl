@@ -324,7 +324,7 @@ function _shared_fold_discrete_lmtp(
     return (
         n = n, y = y, Q_obs = Q_obs, Q1 = Q1, Q0 = Q0, H1 = H1, H0 = H0,
         trunc = trunc, positivity = pos, density_ratio = :classification,
-        clamp_aware = false,
+        clamp_aware = false, family_outcome = family_outcome,
     )
 end
 
@@ -405,6 +405,7 @@ function run_discrete_lmtp(
         estimator = estimator,
         targeting_weight = 1.0,
         epochs = epochs,
+        family_outcome = family_outcome,
     )
     cluster_ids = resolve_cluster_ids(data_clean, cluster, n)
     if cluster_ids !== nothing

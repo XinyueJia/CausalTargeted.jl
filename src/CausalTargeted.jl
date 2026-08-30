@@ -63,6 +63,7 @@ include("id_certificate.jl")
 include("mtp_plan.jl")
 include("mtp_execution.jl")
 include("estimation_plan_bridge.jl")
+include("bootstrap_lmtp.jl")
 include("lmtp_contrast.jl")
 include("synthetic_recovery.jl")
 include("mediation_compat.jl")
@@ -87,8 +88,9 @@ export apply_policy_values
 export mtp_settings, default_deltas, MTPSettings, resolved_stratify_by
 export exposure_bounds, clamp_exposure, make_analysis_strata, crossfit_indices
 export DEFAULT_SL_LEARNERS, RICH_SL_LEARNERS, SMALL_N_SL_LEARNERS
+export COUNT_SL_LEARNERS, SMALL_COUNT_SL_LEARNERS
 export SuperLearnerFit, NestedSLCandidate, nested_sl_candidate
-export recommend_folds, recommend_learners, recommend_run_options, warn_if_folds_too_large
+export recommend_folds, recommend_learners, recommend_count_learners, recommend_run_options, warn_if_folds_too_large
 export adaptive_learners
 export fit_super_learner, predict_super_learner, design_matrix
 export validate_family_outcome, suggest_family_outcome
@@ -100,6 +102,7 @@ export run_lmtp_contrast, run_tmle3_nde, run_sequential_lmtp, run_survival_lmtp
 export sequential_identification_certificate, survival_identification_certificate
 export plan_sequential, sequential_spec_from_identification
 export run_estimation_plan
+export bootstrap_discrete_lmtp_contrast, bootstrap_two_part_discrete_lmtp_contrast
 export domain_transport_weights, transport_weighted_mean
 export PolicyChoice, choose_policy
 export lmtp_tmle_contrast, lmtp_tmle_from_components, apply_shift_policy

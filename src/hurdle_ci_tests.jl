@@ -255,3 +255,83 @@ end
 
 export IndependenceStatement, local_markov_statements, default_hurdle_label_to_col
 export test_implied_hurdle_independences
+
+"""Wide-column symbol for hurdle part at occasion `t` (`1` → no suffix)."""
+function _hurdle_wide_col(base::Symbol, part::AbstractString, t::Integer)
+    if t == 1
+        return Symbol(string(base, "_", part))
+    end
+    return Symbol(string(base, "_", part, "_t", t))
+end
+
+"""
+    hurdle_colmap_presence_intensity(base; time=1, lag=false) -> Dict{String, Symbol}
+
+Colmap preset mapping temporal labels `"base[t]"` to wide presence/intensity
+columns (e.g. `fec_bin_t2`, `fec_intensity_t2`). With `lag=true`, occasion `t`
+maps to columns at `t+1` for lagged outcomes.
+"""
+function hurdle_colmap_presence_intensity(
+    base::Symbol;
+    time::Integer = 1,
+    lag::Bool = false,
+)
+    t = Int(time)
+    if lag
+        pres = Symbol(string(base, "_bin_t", t))
+        int = Symbol(string(base, "_intensity_t", t))
+    else
+        pres = _hurdle_wide_col(base, "bin", t)
+        int = _hurdle_wide_col(base, "intensity", t)
+    end
+    return Dict{String, Symbol}(
+        "$(base)[$t]" => pres,
+        "$(base)_presence[$t]" => pres,
+        "$(base)_intensity[$t]" => int,
+    )
+end
+
+"""
+    hurdle_colmap_grid_arm(; time=1, source=:grid_type, col=nothing) -> Dict{String, Symbol}
+
+Map `"grid_type[t]"` (or another `source` label) to wide arm columns for
+categorical arm coding on lag panels.
+"""
+function hurdle_colmap_grid_arm(;
+    time::Integer = 1,
+    source::Symbol = :grid_type,
+    col::Union{Nothing, Symbol} = nothing,
+)
+    t = Int(time)
+    arm_col = something(col, t == 1 ? :grid_arm : Symbol("grid_arm_t", t))
+    return Dict{String, Symbol}("$(source)[$t]" => arm_col)
+end
+
+"""
+    hurdle_colmap_lag_panel(parts; occasions=(1, 2)) -> Dict{String, Symbol}
+
+Merge colmaps for a two-occasion lag panel. `parts` is a `Dict` of
+`base => (presence_suffix, intensity_suffix)` or use standard `"bin"` /
+`"intensity"` parts via [`hurdle_colmap_presence_intensity`](@ref).
+"""
+function hurdle_colmap_lag_panel(
+    bases::AbstractVector{Symbol};
+    occasions::Tuple{Integer, Integer} = (1, 2),
+    unit_level::AbstractVector{Symbol} = Symbol[],
+)
+    colmap = Dict{String, Symbol}()
+    for base in bases
+        for (i, t) in enumerate(occasions)
+            merge!(colmap, hurdle_colmap_presence_intensity(base; time = t, lag = i == 2))
+        end
+    end
+    for u in unit_level
+        for t in occasions
+            col = t == 1 ? u : Symbol(string(u, "_t", t))
+            colmap["$(u)[$t]"] = col
+        end
+    end
+    return colmap
+end
+
+export hurdle_colmap_presence_intensity, hurdle_colmap_grid_arm, hurdle_colmap_lag_panel

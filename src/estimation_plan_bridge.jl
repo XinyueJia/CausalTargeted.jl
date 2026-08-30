@@ -1,6 +1,35 @@
 """Execute a CausalDynamics `EstimationPlan` on a wide panel."""
 
 """
+    _estimation_plan_runner_opts(df, est_plan) -> NamedTuple
+
+Merge [`recommend_run_options`](@ref) with planner `family_outcome` when set.
+"""
+function _estimation_plan_runner_opts(df::DataFrame, est_plan::CausalDynamics.EstimationPlan)
+    outcome_col = est_plan.outcome
+    outcome_vec = outcome_col in propertynames(df) ? df[!, outcome_col] : nothing
+    opts = if outcome_vec !== nothing
+        recommend_run_options(nrow(df); engine = est_plan.engine, outcome = outcome_vec)
+    else
+        recommend_run_options(nrow(df); engine = est_plan.engine)
+    end
+    if hasproperty(est_plan, :family_outcome) && est_plan.family_outcome !== nothing
+        fam = est_plan.family_outcome
+        if fam in COUNT_OUTCOME_FAMILIES
+            learners = recommend_count_learners(nrow(df); family = fam)
+            opts = merge(opts, (;
+                family_outcome = fam,
+                learners = learners,
+                learners_outcome = learners,
+            ))
+        else
+            opts = merge(opts, (family_outcome = fam,))
+        end
+    end
+    return opts
+end
+
+"""
     run_estimation_plan(df, plan; arm_hi, arm_ref, levels, policy, kwargs...) -> NamedTuple
 
 Run the CausalTargeted engine named in `plan` using column names from
@@ -34,6 +63,10 @@ function run_estimation_plan(
     end
     if est_plan.estimability === :underpowered
         @warn("Empirical support below threshold: min_complete_n=$(est_plan.min_complete_n)")
+    elseif est_plan.estimability === :structural_skip
+        throw(ArgumentError(
+            "EstimationPlan structural_skip: $(est_plan.missingness_note)",
+        ))
     elseif est_plan.estimability === :empty
         throw(ArgumentError(
             "EstimationPlan has no complete cases across analysis columns " *
@@ -44,16 +77,22 @@ function run_estimation_plan(
         @warn("Adjustment columns missing from panel: $(est_plan.missing_columns)")
     end
 
-    opts = recommend_run_options(nrow(df); engine = est_plan.engine)
+    opts = _estimation_plan_runner_opts(df, est_plan)
     folds = something(folds, opts.folds)
     learners_outcome = something(learners_outcome, opts.learners_outcome)
     rng = something(rng, StableRNG(1))
+    family_kw = if hasproperty(opts, :family_outcome)
+        (family_outcome = opts.family_outcome,)
+    else
+        NamedTuple()
+    end
     shared = (;
         baseline = est_plan.baseline,
         folds,
         learners_outcome,
         rng,
     )
+    discrete_shared = merge(shared, family_kw)
 
     if est_plan.engine === :discrete_lmtp
         if arm_hi !== nothing && arm_ref !== nothing
@@ -65,14 +104,14 @@ function run_estimation_plan(
                 arm_hi = arm_hi,
                 arm_ref = arm_ref,
                 levels = levels,
-                shared...,
+                discrete_shared...,
                 kwargs...,
             )
         elseif policy !== nothing
             return run_discrete_lmtp(
                 df, est_plan.treatment, est_plan.outcome;
                 policy = policy,
-                shared...,
+                discrete_shared...,
                 kwargs...,
             )
         else
@@ -105,6 +144,8 @@ function run_estimation_plan(
             arm_ref = arm_ref,
             levels = levels,
             shared...,
+            family_presence = :binomial,
+            family_intensity = :gaussian,
             kwargs...,
         )
     elseif est_plan.engine === :sequential_lmtp

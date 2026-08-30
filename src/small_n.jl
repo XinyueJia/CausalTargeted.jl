@@ -18,6 +18,22 @@ neural nets).
 const SMALL_N_SL_LEARNERS = (:glm, :mean)
 
 """
+    recommend_count_learners(n; family) -> Tuple
+
+Super Learner library for count outcomes (`:poisson` / `:negbin`).
+"""
+function recommend_count_learners(n::Integer; family::Symbol = :negbin)
+    n = Int(n)
+    family in COUNT_OUTCOME_FAMILIES || throw(ArgumentError(
+        "recommend_count_learners requires family=:poisson or :negbin; got $family",
+    ))
+    if n < 40
+        return family === :negbin ? SMALL_COUNT_SL_LEARNERS : (:glm_poisson, :mean)
+    end
+    return COUNT_SL_LEARNERS
+end
+
+"""
     recommend_folds(n) -> Int
 
 Cross-fitting folds as a function of sample size.
@@ -105,6 +121,14 @@ function recommend_run_options(
     )
     outcome === nothing && return base
     fam = suggest_family_outcome(outcome)
+    if fam in COUNT_OUTCOME_FAMILIES
+        count_learners = recommend_count_learners(n; family = fam)
+        return merge(base, (;
+            family_outcome = fam,
+            learners = count_learners,
+            learners_outcome = count_learners,
+        ))
+    end
     return merge(base, (family_outcome = fam,))
 end
 
@@ -123,5 +147,5 @@ function warn_if_folds_too_large(n::Integer, folds::Integer)
     return nothing
 end
 
-export SMALL_N_SL_LEARNERS
-export recommend_folds, recommend_learners, recommend_run_options, warn_if_folds_too_large
+export SMALL_N_SL_LEARNERS, COUNT_SL_LEARNERS, SMALL_COUNT_SL_LEARNERS
+export recommend_folds, recommend_learners, recommend_count_learners, recommend_run_options, warn_if_folds_too_large

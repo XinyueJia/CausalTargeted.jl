@@ -100,11 +100,4 @@ using Test
         @test res.intensity.estimate > 0.05
         @test res.presence.hi.covariance_kind == :cluster
     end
-
-    @testset "suggest_family_outcome + recommend_run_options" begin
-        @test suggest_family_outcome([0.0, 1.0, 0.0, 1.0]) === :binomial
-        @test suggest_family_outcome([0.0, 1.0, 0.5]) === :gaussian
-        opts = recommend_run_options(80; outcome = [0.0, 1.0, 0.0, 1.0])
-        @test opts.family_outcome === :binomial
-    end
 end

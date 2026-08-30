@@ -1,10 +1,11 @@
 using CausalDynamics
 using CausalDynamics:
     TemporalDAGSpec, LaggedEdge, unroll_temporal_dag, TemporalEffectQuery,
-    plan_targeted_estimation, panel_column_name, check_occasion_resolution,
-    NodeOutcomeSpec, hurdle
+    plan_targeted_estimation, panel_column_name,
+    NodeOutcomeSpec, hurdle, binary, count_outcome
 using CausalTargeted
 using DataFrames
+using Distributions
 using Random
 using StableRNGs
 using Test
@@ -151,20 +152,90 @@ end
     @test isfinite(res.intensity.estimate)
 end
 
-@testset "occasion resolution check (#17)" begin
-    query = TemporalEffectQuery(:grid_type, :contact, 4, 4)
-    issues = check_occasion_resolution(
-        query,
-        Dict(:contact => 1);
-        warn = false,
+@testset "panel path: binary planner → binomial nuisances (#44)" begin
+    rng = StableRNG(21)
+    n = 200
+    arms = rand(rng, ["R", "SS"], n)
+    df = DataFrame(mouse_id = string.(1:n), grid_type = arms)
+    logit_p = @. -0.5 + 0.7 * (arms .== "SS")
+    p = 1.0 ./ (1.0 .+ exp.(-logit_p))
+    df[!, :infected2] = Float64.(rand(rng, n) .< p)
+
+    spec = TemporalDAGSpec([:grid_type, :infected], [LaggedEdge(:grid_type, :infected, 0)])
+    u = unroll_temporal_dag(spec, 2)
+    query = TemporalEffectQuery(:grid_type, :infected, 2, 2)
+    outcome_specs = Dict(:infected => NodeOutcomeSpec(binary))
+    plan = plan_targeted_estimation(
+        u, query, propertynames(df);
+        unit_level = [:grid_type],
+        outcome_specs = outcome_specs,
+        data = df,
     )
-    @test length(issues) == 1
-    @test issues[1].query_occasion == 4
-    @test issues[1].source_occasion == 1
-    ok = check_occasion_resolution(
-        query,
-        Dict(:contact => 4);
-        warn = false,
+    @test plan.family_outcome === :binomial
+    res = run_estimation_plan(
+        df, plan;
+        arm_hi = "SS",
+        arm_ref = "R",
+        levels = ["R", "SS"],
+        folds = 3,
+        learners_outcome = (:glm, :mean),
+        rng = StableRNG(22),
     )
-    @test isempty(ok)
+    @test res.estimate > 0.05
+end
+
+@testset "panel path: count planner → NB nuisances (#24)" begin
+    rng = StableRNG(31)
+    n = 300
+    arms = rand(rng, [0, 1], n)
+    df = DataFrame(
+        mouse_id = string.(1:n),
+        grid_type = [a == 0 ? "R" : "SS" for a in arms],
+    )
+    μ = @. exp(0.4 + 0.35 * arms)
+    df[!, :count2] = [rand(rng, NegativeBinomial(2.0, 2 / (2 + μᵢ))) for μᵢ in μ]
+
+    spec = TemporalDAGSpec([:grid_type, :count], [LaggedEdge(:grid_type, :count, 0)])
+    u = unroll_temporal_dag(spec, 2)
+    query = TemporalEffectQuery(:grid_type, :count, 2, 2)
+    outcome_specs = Dict(:count => NodeOutcomeSpec(count_outcome))
+    plan = plan_targeted_estimation(
+        u, query, propertynames(df);
+        unit_level = [:grid_type],
+        outcome_specs = outcome_specs,
+        data = df,
+    )
+    @test plan.family_outcome === :negbin
+    res = run_estimation_plan(
+        df, plan;
+        arm_hi = "SS",
+        arm_ref = "R",
+        levels = ["R", "SS"],
+        folds = 3,
+        learners_outcome = (:glm_nb, :mean),
+        rng = StableRNG(32),
+    )
+    @test res.estimate > 0
+end
+
+@testset "panel path: structural_skip (#26)" begin
+    spec = TemporalDAGSpec([:grid_type, :fec], [LaggedEdge(:grid_type, :fec, 0)])
+    u = unroll_temporal_dag(spec, 4)
+    query = TemporalEffectQuery(:grid_type, :fec, 2, 4)
+    df = DataFrame(
+        mouse_id = string.(1:20),
+        grid_type = fill("R", 20),
+        fec2 = rand(20),
+    )
+    plan = plan_targeted_estimation(
+        u, query, propertynames(df);
+        unit_level = [:grid_type],
+    )
+    @test plan.estimability === :structural_skip
+    @test_throws ArgumentError run_estimation_plan(
+        df, plan;
+        arm_hi = "SS",
+        arm_ref = "R",
+        levels = ["R", "SS"],
+    )
 end

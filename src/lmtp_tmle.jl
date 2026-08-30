@@ -315,6 +315,82 @@ function _shared_fold_lmtp_components(
     return (
         y = y, Q_obs = Q_obs, Q1 = Q1, Q0 = Q0, H1 = H1, H0 = H0, n = n,
         trunc = trunc_used, density_ratio = density_ratio, clamp_aware = clamp_aware,
+        family_outcome = family_outcome,
+    )
+end
+
+"""
+    _clamp_count_predictions!(Q)
+
+Ensure fitted means stay on the nonnegative count scale.
+"""
+function _clamp_count_predictions!(Q::AbstractVector{<:Real})
+    Q .= max.(Q, 0.0)
+    return Q
+end
+
+"""
+    _solve_tmle_scores_count!(Q1, Q0, resid, H1, H0; kwargs...) -> Int
+
+Log-link fluctuation for Poisson / NB outcome targeting:
+``Q^* \\leftarrow Q \\exp(\\varepsilon H)`` with Poisson-style score denominators.
+Returns the number of epochs used.
+"""
+function _solve_tmle_scores_count!(
+    Q1::AbstractVector{<:Real},
+    Q0::AbstractVector{<:Real},
+    resid::AbstractVector{<:Real},
+    H1::AbstractVector{<:Real},
+    H0::AbstractVector{<:Real};
+    λ::Real = 1.0,
+    max_epochs::Int = 1,
+    tol::Real = 1e-10,
+    ε_floor::Real = 1e-8,
+)
+    n_used = 0
+    for ep in 1:max_epochs
+        d1 = sum(H1 .^ 2 .* max.(Q1, ε_floor))
+        d0 = sum(H0 .^ 2 .* max.(Q0, ε_floor))
+        ε1 = d1 > 1e-12 ? clamp(sum(H1 .* resid) / d1, -5.0, 5.0) : 0.0
+        ε0 = d0 > 1e-12 ? clamp(sum(H0 .* resid) / d0, -5.0, 5.0) : 0.0
+        abs(ε1) + abs(ε0) < tol && break
+        step = ep == 1 ? 1.0 : 0.5^(ep - 1)
+        Q1 .*= exp.((λ * step * ε1) .* H1)
+        Q0 .*= exp.((λ * step * ε0) .* H0)
+        _clamp_count_predictions!(Q1)
+        _clamp_count_predictions!(Q0)
+        n_used = ep
+    end
+    return n_used
+end
+
+"""
+    _run_lmtp_targeting(Q1, Q0, resid, H1, H0; family_outcome, ...) -> Int
+
+Dispatch TMLE score solving for Gaussian vs count outcome families.
+"""
+function _run_lmtp_targeting(
+    Q1::AbstractVector{<:Real},
+    Q0::AbstractVector{<:Real},
+    resid::AbstractVector{<:Real},
+    H1::AbstractVector{<:Real},
+    H0::AbstractVector{<:Real};
+    family_outcome::Symbol = :gaussian,
+    λ::Real = 1.0,
+    max_epochs::Int = 1,
+    tol::Real = 1e-10,
+)
+    if family_outcome in COUNT_OUTCOME_FAMILIES
+        _clamp_count_predictions!(Q1)
+        _clamp_count_predictions!(Q0)
+        return _solve_tmle_scores_count!(
+            Q1, Q0, resid, H1, H0;
+            λ = λ, max_epochs = max_epochs, tol = tol,
+        )
+    end
+    return _solve_tmle_scores!(
+        Q1, Q0, resid, H1, H0;
+        λ = λ, max_epochs = max_epochs, tol = tol,
     )
 end
 
@@ -406,6 +482,7 @@ function lmtp_tmle_contrast(
     )
     λ = clamp(Float64(targeting_weight), 0.0, 1.0)
     n_epochs = clamp(max(1, epochs), 1, 5)
+    fam = family_outcome
 
     Q1 = copy(c.Q1)
     Q0 = copy(c.Q0)
@@ -414,6 +491,10 @@ function lmtp_tmle_contrast(
     epochs_used = 0
 
     if estimator in (:eif, :aipw, :sdr)
+        fam in COUNT_OUTCOME_FAMILIES && begin
+            _clamp_count_predictions!(Q1)
+            _clamp_count_predictions!(Q0)
+        end
         ic1 = Q1 .+ λ .* c.H1 .* resid
         ic0 = Q0 .+ λ .* c.H0 .* resid
         ψ1 = mean(ic1)
@@ -421,8 +502,9 @@ function lmtp_tmle_contrast(
         est = ψ1 - ψ0
         ic = (ic1 .- ic0) .- est
     elseif estimator == :itmle
-        epochs_used = _solve_tmle_scores!(
+        epochs_used = _run_lmtp_targeting(
             Q1, Q0, resid, c.H1, c.H0;
+            family_outcome = fam,
             λ = λ, max_epochs = clamp(max(n_epochs, 5), 1, 5), tol = 1e-8,
         )
         ψ1 = mean(Q1)
@@ -431,8 +513,9 @@ function lmtp_tmle_contrast(
         ic_raw = (Q1 .- Q0) .+ λ .* ((c.H1 .- c.H0) .* resid_orig)
         ic = ic_raw .- mean(ic_raw)
     else
-        epochs_used = _solve_tmle_scores!(
+        epochs_used = _run_lmtp_targeting(
             Q1, Q0, resid, c.H1, c.H0;
+            family_outcome = fam,
             λ = λ, max_epochs = n_epochs, tol = 1e-10,
         )
         ψ1 = mean(Q1)
@@ -461,9 +544,13 @@ function lmtp_tmle_from_components(
     estimator::Symbol = :tmle,
     targeting_weight::Real = 1.0,
     epochs::Int = 1,
+    family_outcome::Union{Nothing, Symbol} = nothing,
 )
     λ = clamp(Float64(targeting_weight), 0.0, 1.0)
     n_epochs = clamp(max(1, epochs), 1, 5)
+    fam = family_outcome === nothing ?
+        (hasproperty(components, :family_outcome) ? components.family_outcome : :gaussian) :
+        family_outcome
     Q1 = copy(components.Q1)
     Q0 = copy(components.Q0)
     resid = components.y .- components.Q_obs
@@ -471,6 +558,10 @@ function lmtp_tmle_from_components(
     epochs_used = 0
 
     if estimator in (:eif, :aipw, :sdr)
+        fam in COUNT_OUTCOME_FAMILIES && begin
+            _clamp_count_predictions!(Q1)
+            _clamp_count_predictions!(Q0)
+        end
         ic1 = Q1 .+ λ .* components.H1 .* resid
         ic0 = Q0 .+ λ .* components.H0 .* resid
         ψ1 = mean(ic1)
@@ -478,8 +569,9 @@ function lmtp_tmle_from_components(
         est = ψ1 - ψ0
         ic = (ic1 .- ic0) .- est
     elseif estimator == :itmle
-        epochs_used = _solve_tmle_scores!(
+        epochs_used = _run_lmtp_targeting(
             Q1, Q0, resid, components.H1, components.H0;
+            family_outcome = fam,
             λ = λ, max_epochs = clamp(max(n_epochs, 5), 1, 5), tol = 1e-8,
         )
         ψ1 = mean(Q1)
@@ -488,8 +580,9 @@ function lmtp_tmle_from_components(
         ic_raw = (Q1 .- Q0) .+ λ .* ((components.H1 .- components.H0) .* resid_orig)
         ic = ic_raw .- mean(ic_raw)
     else
-        epochs_used = _solve_tmle_scores!(
+        epochs_used = _run_lmtp_targeting(
             Q1, Q0, resid, components.H1, components.H0;
+            family_outcome = fam,
             λ = λ, max_epochs = n_epochs, tol = 1e-10,
         )
         ψ1 = mean(Q1)

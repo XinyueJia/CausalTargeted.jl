@@ -7,6 +7,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.25] - 2026-08-30
+
+### Added
+
+- **ZINB learners ([#40](https://github.com/SimonAB/CausalTargeted.jl/issues/40)):**
+  `:zeroinflated_nb` Super Learner and `family_outcome = :zeroinflated_nb` on
+  count LMTP paths (logistic inflation + profiled NB composite mean).
+
+## [0.3.24] - 2026-08-30
+
+### Added
+
+- **`run_estimation_plan` structural skip ([#26](https://github.com/SimonAB/CausalDynamics.jl/issues/26)):**
+  throws when `EstimationPlan.estimability === :structural_skip`.
+
+## [0.3.23] - 2026-08-30
+
+### Added
+
+- **Hurdle CI lag colmaps ([#43](https://github.com/SimonAB/CausalTargeted.jl/issues/43)):**
+  `hurdle_colmap_presence_intensity`, `hurdle_colmap_grid_arm`,
+  `hurdle_colmap_lag_panel`.
+
+## [0.3.22] - 2026-08-30
+
+### Added
+
+- **Bootstrap LMTP ([#42](https://github.com/SimonAB/CausalTargeted.jl/issues/42)):**
+  `bootstrap_discrete_lmtp_contrast` and `bootstrap_two_part_discrete_lmtp_contrast`
+  (row/cluster resample, percentile CI).
+
+## [0.3.21] - 2026-08-30
+
+### Added
+
+- Session-slice integration tests with `plan_session_estimation` / `session_slice`.
+
+## [0.3.20] - 2026-08-30
+
+### Added
+
+- **Continuous count `run_lmtp_grid` ([#41](https://github.com/SimonAB/CausalTargeted.jl/issues/41)):**
+  verified count targeting path with `family_outcome = :poisson | :negbin`.
+  Closes [#36](https://github.com/SimonAB/CausalTargeted.jl/issues/36) Phase A+C.
+
+## [0.3.19] - 2026-08-30
+
+### Added
+
+- **`run_estimation_plan` family handoff ([#44](https://github.com/SimonAB/CausalTargeted.jl/issues/44)):**
+  merges planner `family_outcome` with `recommend_run_options` / count learners.
+
+## [0.3.18] - 2026-08-30
+
+### Added
+
+- **Count outcome LMTP (Phase A, #36):** `:poisson` and `:negbin` Super Learner
+  families with `:glm_poisson` / `:glm_nb` learners (profiled NB θ per fold);
+  `family_outcome = :poisson | :negbin` on discrete LMTP runners; log-link TMLE
+  targeting on the count scale; `suggest_family_outcome` count heuristics;
+  `recommend_count_learners` / count-aware `recommend_run_options`. Coverage:
+  `test/test_count_lmtp.jl`.
+
 ## [0.3.17] - 2026-08-30
 
 ### Added

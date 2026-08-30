@@ -31,7 +31,8 @@
 - **Gaussian MMRM reference** (`fit_mmrm`, `run_mmrm`, `MMRMResult`): static
   treatment × visit Gaussian LMM; see [#25](https://github.com/SimonAB/CausalTargeted.jl/issues/25)
 - **Outcome family plumbing** (`family_outcome` on LMTP runners;
-  `suggest_family_outcome`, `validate_family_outcome`): binomial presence nuisances ([#34](https://github.com/SimonAB/CausalTargeted.jl/issues/34))
+  `suggest_family_outcome`, `validate_family_outcome`): binomial presence nuisances ([#34](https://github.com/SimonAB/CausalTargeted.jl/issues/34));
+  Poisson / NB count nuisances and log-link TMLE on marginal mean ([#36](https://github.com/SimonAB/CausalTargeted.jl/issues/36))
 - **Two-part hurdle LMTP** (`TwoPartInterventionalMean`,
   `run_two_part_discrete_lmtp`, `run_two_part_discrete_lmtp_contrast`): binomial
   presence + conditional Gaussian intensity ([#35](https://github.com/SimonAB/CausalTargeted.jl/issues/35))

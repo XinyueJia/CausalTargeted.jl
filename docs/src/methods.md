@@ -186,6 +186,25 @@ run_discrete_lmtp_contrast(
 )
 ```
 
+For nonnegative count outcomes (parasite totals, colony counts), use
+`family_outcome = :poisson` or `:negbin`. Nuisance models use log-link GLMs;
+profiled NB shape per cross-fit fold; TMLE targeting uses a log-link fluctuation
+on the fitted mean. The reported estimand is ``E[Y \mid \mathrm{do}(A)]`` on
+the count scale ([#36](https://github.com/SimonAB/CausalTargeted.jl/issues/36)):
+
+```julia
+run_discrete_lmtp_contrast(
+    df, :arm, :count;
+    arm_hi = 1, arm_ref = 0, levels = [0, 1],
+    baseline = [:weight],
+    family_outcome = :negbin,
+    learners_outcome = (:glm_nb, :mean),
+)
+```
+
+When excess zeros are scientifically co-primary, prefer the two-part hurdle
+path below rather than a single count model.
+
 The same `family_outcome` keyword is forwarded by `run_lmtp_grid` and
 `run_discrete_lmtp`. Multi-time factor recodes use the same policies on
 `run_sequential_lmtp`. Optional MLJ / MLP candidates are
@@ -372,7 +391,7 @@ ladder (association → intervention → counterfactual).
 | Repeated Gaussian, static treatment | LS-mean-style contrast (parametric) | `fit_mmrm` / `run_mmrm` ([#25](https://github.com/SimonAB/CausalTargeted.jl/issues/25); `using MixedModels`) | Trial-style reference beside MSM/LMTP |
 | Repeated count / overdispersion, static treatment | Marginal g-comp on count scale | `mixed_g_computation` (NB2 ext) | Hierarchical reference; not LMTP |
 | Time-varying treatment | Sequential LMTP | `run_sequential_lmtp` | ``A_t`` shifts or factor policies |
-| Count LMTP (marginal mean) | ``E[Y \mid \mathrm{do}(A)]`` on count scale | *Planned* ([#36](https://github.com/SimonAB/CausalTargeted.jl/issues/36)) | Poisson/NB nuisances; two-part often clearer for zeros |
+| Count / overdispersed integer | ``E[Y \mid \mathrm{do}(A)]`` on count scale | `run_discrete_lmtp` + `family_outcome=:poisson` or `:negbin` ([#36](https://github.com/SimonAB/CausalTargeted.jl/issues/36)) | Parasite totals, colony counts; prefer two-part when zeros are co-primary |
 
 **Two-part hurdle LMTP.** Build `presence` (``I(Y>0)``) and `intensity` (e.g.
 `log(y)` on positives, with `missing` when ``Y=0``). Presence uses binomial

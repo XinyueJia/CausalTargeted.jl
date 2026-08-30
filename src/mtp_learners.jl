@@ -15,6 +15,10 @@ using StableRNGs
 using Logging
 
 const DEFAULT_SL_LEARNERS = (:glm, :mean)
+const COUNT_SL_LEARNERS = (:zeroinflated_nb, :glm_nb, :glm_poisson, :mean)
+const SMALL_COUNT_SL_LEARNERS = (:glm_nb, :zeroinflated_nb, :mean)
+const DEFAULT_NB_THETA_GRID = (0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0)
+const COUNT_OUTCOME_FAMILIES = (:poisson, :negbin, :zeroinflated_nb)
 const RICH_SL_LEARNERS = (
     :glm,
     :glm_interact,
@@ -50,7 +54,8 @@ end
     SuperLearnerFit
 
 Typed SuperLearner ensemble: candidate fits, metalearner weights, library names,
-and outcome `family` (`:gaussian`, `:binomial`, or `:multinomial`).
+and outcome `family` (`:gaussian`, `:binomial`, `:multinomial`, `:poisson`, or
+`:negbin`).
 """
 struct SuperLearnerFit
     fits::Dict{Symbol, Any}
@@ -571,6 +576,119 @@ function _predict_logistic(model, X::Matrix{Float64})
     return clamp.(vec(GLM.predict(obj, X)), 1e-6, 1 - 1e-6)
 end
 
+"""Nonnegative mean fallback for count learners."""
+function _safe_mean_count(y::AbstractVector{<:Real})
+    return max(_safe_mean(y), 1e-8)
+end
+
+function _validate_count_outcome(y::AbstractVector{<:Real})
+    all(isfinite, y) ||
+        throw(ArgumentError("count outcomes must be finite"))
+    any(<(0), y) &&
+        throw(ArgumentError("count outcomes must be non-negative"))
+    return nothing
+end
+
+function _fit_poisson_safe(X::Matrix{Float64}, y::Vector{Float64})
+    yc = max.(Float64.(y), 0.0)
+    try
+        return (:poisson, glm(X, yc, Poisson(), LogLink()))
+    catch
+        return (:mean, _safe_mean_count(yc))
+    end
+end
+
+function _predict_poisson(model, X::Matrix{Float64})
+    typ, obj = model
+    typ == :mean && return fill(Float64(obj), size(X, 1))
+    return max.(vec(GLM.predict(obj, X)), 1e-8)
+end
+
+"""
+    _profile_nb_theta(X, y; grid) -> NamedTuple
+
+Select a NegativeBinomial shape parameter by minimum deviance on the training
+fold (NB2-style GLM with log link).
+"""
+function _profile_nb_theta(
+    X::Matrix{Float64},
+    y::Vector{Float64};
+    grid = DEFAULT_NB_THETA_GRID,
+)
+    yc = max.(Float64.(y), 0.0)
+    best_dev = Inf
+    best_model = nothing
+    best_θ = 2.0
+    for θ in grid
+        try
+            m = glm(X, yc, NegativeBinomial(θ), LogLink())
+            dev = deviance(m)
+            if dev < best_dev
+                best_dev = dev
+                best_model = m
+                best_θ = θ
+            end
+        catch
+        end
+    end
+    best_model === nothing && return _fit_poisson_safe(X, y)
+    return (:negbin, (model = best_model, θ = best_θ))
+end
+
+function _fit_negbin_safe(
+    X::Matrix{Float64},
+    y::Vector{Float64};
+    θ::Union{Nothing, Real} = nothing,
+)
+    yc = max.(Float64.(y), 0.0)
+    if θ !== nothing
+        try
+            m = glm(X, yc, NegativeBinomial(Float64(θ)), LogLink())
+            return (:negbin, (model = m, θ = Float64(θ)))
+        catch
+            return (:mean, _safe_mean_count(yc))
+        end
+    end
+    return _profile_nb_theta(X, y)
+end
+
+"""
+    _fit_zeroinflated_nb_safe(X, y) -> Tuple
+
+Zero-inflated NB learner: logistic inflation on ``I(y=0)`` plus profiled NB
+on counts. Predictions use ``(1 - \\hat\\pi) \\hat\\mu`` (composite mean).
+"""
+function _fit_zeroinflated_nb_safe(X::Matrix{Float64}, y::Vector{Float64})
+    yc = max.(Float64.(y), 0.0)
+    z = Float64.(yc .== 0)
+    pi_model = try
+        m = glm(X, z, Binomial(), LogitLink())
+        (:logistic, m)
+    catch
+        (:mean, _safe_mean(z))
+    end
+    nb_model = _fit_negbin_safe(X, yc)
+    return (:zeroinflated_nb, (pi = pi_model, nb = nb_model))
+end
+
+function _predict_zeroinflated_nb(model, X::Matrix{Float64})
+    typ, obj = model
+    typ == :mean && return fill(Float64(obj), size(X, 1))
+    pi_pred = if obj.pi[1] == :mean
+        fill(Float64(obj.pi[2]), size(X, 1))
+    else
+        clamp.(vec(GLM.predict(obj.pi[2], X)), 1e-8, 1 - 1e-8)
+    end
+    mu = _predict_negbin(obj.nb, X)
+    return max.((1 .- pi_pred) .* mu, 0.0)
+end
+
+function _predict_negbin(model, X::Matrix{Float64})
+    typ, obj = model
+    typ == :mean && return fill(Float64(obj), size(X, 1))
+    return max.(vec(GLM.predict(obj.model, X)), 1e-8)
+end
+
 """
     _expand_interactions(X) -> Matrix{Float64}
 
@@ -732,33 +850,54 @@ function _fit_learner(::Val{:mlj_elasticnet}, X::Matrix{Float64}, y::Vector{Floa
 end
 
 function _fit_learner(::Val{:randomforest}, X::Matrix{Float64}, y::Vector{Float64}; family = :gaussian)
-    family in (:gaussian, :binomial, :multinomial) || throw(ArgumentError(
-        ":randomforest supports family=:gaussian, :binomial, or :multinomial, got $family",
+    family in (:gaussian, :binomial, :multinomial, :poisson, :negbin, :zeroinflated_nb) || throw(ArgumentError(
+        ":randomforest supports family=:gaussian, :binomial, :multinomial, :poisson, :negbin, or :zeroinflated_nb; got $family",
     ))
-    return (:randomforest, _fit_mlj_tree(:randomforest, X, y; family = family))
+    tree_family = family in COUNT_OUTCOME_FAMILIES ? :gaussian : family
+    return (:randomforest, _fit_mlj_tree(:randomforest, X, y; family = tree_family))
 end
 
 function _fit_learner(::Val{:xgboost}, X::Matrix{Float64}, y::Vector{Float64}; family = :gaussian)
-    family in (:gaussian, :binomial, :multinomial) || throw(ArgumentError(
-        ":xgboost supports family=:gaussian, :binomial, or :multinomial, got $family",
+    family in (:gaussian, :binomial, :multinomial, :poisson, :negbin, :zeroinflated_nb) || throw(ArgumentError(
+        ":xgboost supports family=:gaussian, :binomial, :multinomial, :poisson, :negbin, or :zeroinflated_nb; got $family",
     ))
-    return (:xgboost, _fit_mlj_tree(:xgboost, X, y; family = family))
+    tree_family = family in COUNT_OUTCOME_FAMILIES ? :gaussian : family
+    return (:xgboost, _fit_mlj_tree(:xgboost, X, y; family = tree_family))
 end
 
-"""Fit a linear or logistic GLM on an already-expanded design."""
+"""Fit a GLM on an already-expanded design (Gaussian, logistic, Poisson, or NB)."""
 function _fit_glm_design(X::Matrix{Float64}, y::Vector{Float64}; family = :gaussian)
     family === :binomial && return _fit_logistic_safe(X, y)
+    family === :poisson && return _fit_poisson_safe(X, y)
+    family === :negbin && return _fit_negbin_safe(X, y)
+    family === :zeroinflated_nb && return _fit_zeroinflated_nb_safe(X, y)
     return _fit_glm_safe(X, y)
 end
 
-"""Predict from a nested GLM/logistic/`mean` fallback tuple."""
+"""Predict from a nested GLM / count / logistic / `mean` fallback tuple."""
 function _predict_glm_design(inner, X::Matrix{Float64})
-    inner[1] === :logistic && return _predict_logistic(inner, X)
+    typ = inner[1]
+    typ === :logistic && return _predict_logistic(inner, X)
+    typ === :poisson && return _predict_poisson(inner, X)
+    typ === :negbin && return _predict_negbin(inner, X)
+    typ === :zeroinflated_nb && return _predict_zeroinflated_nb(inner, X)
     return _predict_glm(inner, X)
 end
 
 function _fit_learner(::Val{:glm}, X::Matrix{Float64}, y::Vector{Float64}; family = :gaussian)
     return _fit_glm_design(X, y; family = family)
+end
+
+function _fit_learner(::Val{:glm_poisson}, X::Matrix{Float64}, y::Vector{Float64}; family = :gaussian)
+    return _fit_poisson_safe(X, y)
+end
+
+function _fit_learner(::Val{:glm_nb}, X::Matrix{Float64}, y::Vector{Float64}; family = :gaussian)
+    return _fit_negbin_safe(X, y)
+end
+
+function _fit_learner(::Val{:zeroinflated_nb}, X::Matrix{Float64}, y::Vector{Float64}; family = :gaussian)
+    return _fit_zeroinflated_nb_safe(X, y)
 end
 
 function _fit_learner(::Val{:glm_interact}, X::Matrix{Float64}, y::Vector{Float64}; family = :gaussian)
@@ -815,6 +954,18 @@ end
 
 function _predict_learner(::Val{:glm}, model, X::Matrix{Float64})
     return _predict_glm_design(model, X)
+end
+
+function _predict_learner(::Val{:glm_poisson}, model, X::Matrix{Float64})
+    return _predict_poisson(model, X)
+end
+
+function _predict_learner(::Val{:glm_nb}, model, X::Matrix{Float64})
+    return _predict_negbin(model, X)
+end
+
+function _predict_learner(::Val{:zeroinflated_nb}, model, X::Matrix{Float64})
+    return _predict_zeroinflated_nb(model, X)
 end
 
 function _predict_learner(::Val{:glm_interact}, model, X::Matrix{Float64})
@@ -881,6 +1032,14 @@ end
 
 function _predict_learner(::Val{:xgboost}, model, X::Matrix{Float64})
     return _predict_mlj_tree(:xgboost, model[2], X)
+end
+
+function _predict_learner(::Val{:poisson}, model, X::Matrix{Float64})
+    return _predict_poisson(model, X)
+end
+
+function _predict_learner(::Val{:negbin}, model, X::Matrix{Float64})
+    return _predict_negbin(model, X)
 end
 
 function _predict_learner(::Val{typ}, model, X::Matrix{Float64}) where {typ}
@@ -952,26 +1111,50 @@ Check that `family` is a supported Super Learner outcome family and that
 `:binomial` outcomes lie in ``\\{0, 1\\}``.
 """
 function validate_family_outcome(y::AbstractVector, family::Symbol)
-    family in (:gaussian, :binomial, :multinomial) || throw(ArgumentError(
-        "family_outcome must be :gaussian, :binomial, or :multinomial; got $family",
+    family in (:gaussian, :binomial, :multinomial, :poisson, :negbin, :zeroinflated_nb) ||
+        throw(ArgumentError(
+        "family_outcome must be :gaussian, :binomial, :multinomial, :poisson, " *
+        ":negbin, or :zeroinflated_nb; got $family",
     ))
     family === :binomial && _validate_binary_outcome(collect(Float64, y))
+    family in COUNT_OUTCOME_FAMILIES && _validate_count_outcome(collect(Float64, y))
     return nothing
+end
+
+"""Return true when values look like nonnegative integer counts (not binary)."""
+function _looks_like_count_vals(vals::AbstractVector{<:Real})
+    isempty(vals) && return false
+    all(v -> v >= 0, vals) || return false
+    all(v -> abs(v - round(v)) < 1e-8, vals) || return false
+    return !(maximum(vals) <= 1 && all(v -> v == 0 || v == 1, vals))
 end
 
 """
     suggest_family_outcome(y) -> Symbol
 
-Return `:binomial` when all non-missing values lie in ``\\{0, 1\\}``; otherwise
-`:gaussian`. Use with `recommend_run_options(...; outcome=)` or pass the result
-as `family_outcome` on LMTP runners ([#34](https://github.com/SimonAB/CausalTargeted.jl/issues/34)).
+Return `:binomial` when all non-missing values lie in ``\\{0, 1\\}``;
+`:negbin` or `:poisson` for nonnegative integer counts (overdispersion heuristic);
+otherwise `:gaussian`. Use with `recommend_run_options(...; outcome=)` or pass
+the result as `family_outcome` on LMTP runners
+([#34](https://github.com/SimonAB/CausalTargeted.jl/issues/34),
+[#36](https://github.com/SimonAB/CausalTargeted.jl/issues/36)).
 """
 function suggest_family_outcome(y::AbstractVector)
+    vals = Float64[]
     for v in y
         ismissing(v) && continue
-        v == 0 || v == 1 || v == 0.0 || v == 1.0 || return :gaussian
+        push!(vals, Float64(v))
     end
-    return :binomial
+    isempty(vals) && return :gaussian
+    if maximum(vals) <= 1 && all(v -> v == 0.0 || v == 1.0, vals)
+        return :binomial
+    end
+    if _looks_like_count_vals(vals)
+        μ = mean(vals)
+        σ² = var(vals; corrected = true)
+        return σ² > μ * 1.25 + 1e-8 ? :negbin : :poisson
+    end
+    return :gaussian
 end
 
 """Trim a probability matrix and return its elementwise logits."""
@@ -1262,8 +1445,8 @@ function fit_super_learner(
     family::Symbol = :gaussian,
     levels = nothing,
 )
-    family in (:gaussian, :binomial, :multinomial) || throw(ArgumentError(
-        "unknown family $family; expected :gaussian, :binomial, or :multinomial",
+    family in (:gaussian, :binomial, :multinomial, :poisson, :negbin, :zeroinflated_nb) || throw(ArgumentError(
+        "unknown family $family; expected :gaussian, :binomial, :multinomial, :poisson, :negbin, or :zeroinflated_nb",
     ))
     requested = metalearner === nothing ? _default_metalearner(family) : metalearner
     canon = _canonical_metalearner(requested; family = family)
@@ -1348,6 +1531,9 @@ function predict_super_learner(sl::SuperLearnerFit, X::Matrix{Float64})
     out = zeros(n)
     for (j, lrn) in enumerate(sl.learners)
         out .+= sl.weights[j] .* _predict_learner(sl.fits[lrn], X)
+    end
+    if sl.family in COUNT_OUTCOME_FAMILIES
+        out .= max.(out, 0.0)
     end
     return out
 end

@@ -86,4 +86,34 @@ const NODE_PARTS = Dict(:fec => (:fec_bin, :fec_intensity))
         @test default_hurdle_label_to_col("fec[1]") == :fec
         @test default_hurdle_label_to_col("fec[2]") == :fec_t2
     end
+
+    @testset "hurdle colmap lag panel (#43)" begin
+        df = DataFrame(
+            sex_t1 = rand(120),
+            sex_t2 = rand(120),
+            grid_arm = rand(["R", "SS"], 120),
+            fec_bin_t1 = Float64.(rand(120) .< 0.4),
+            fec_intensity_t1 = abs.(randn(120)) .+ 0.5,
+            fec_bin_t2 = Float64.(rand(120) .< 0.4),
+            fec_intensity_t2 = abs.(randn(120)) .+ 0.5,
+            weight_t2 = randn(120),
+        )
+        colmap = merge(
+            hurdle_colmap_lag_panel([:fec]; occasions = (1, 2), unit_level = [:sex]),
+            hurdle_colmap_grid_arm(time = 2, col = :grid_arm),
+        )
+        @test colmap["fec[2]"] == :fec_bin_t2
+        @test colmap["sex[2]"] == :sex_t2
+        @test colmap["grid_type[2]"] == :grid_arm
+
+        stmt = IndependenceStatement(
+            1, 2, Int[], "grid_type[2]", "fec[2]", String[], true,
+        )
+        lag_parts = Dict(:fec => (:fec_bin_t2, :fec_intensity_t2))
+        results = test_implied_hurdle_independences(
+            [stmt], df, lag_parts; colmap = colmap, α = 0.05,
+        )
+        @test length(results) == 2
+        @test all(r -> r.n >= 10 && !r.skipped, results)
+    end
 end
