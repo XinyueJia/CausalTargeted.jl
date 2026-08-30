@@ -41,6 +41,7 @@ include("targeting_diagnostics.jl")
 include("lmtp_tmle.jl")
 include("cluster_robust.jl")
 include("discrete_lmtp.jl")
+include("two_part_discrete_lmtp.jl")
 include("fold_nuisance_cache.jl")
 include("positivity.jl")
 include("missing_data.jl")
@@ -65,16 +66,19 @@ include("lmtp_contrast.jl")
 include("synthetic_recovery.jl")
 include("mediation_compat.jl")
 include("mtp_plotting.jl")
+include("hurdle_ci_tests.jl")
 include("mixedmodels.jl")
+include("mmrm.jl")
 
 export ShiftPolicy, Estimand
 export InterventionalMean, MediationContrast, LongitudinalPolicy, ScalarMediation
-export DiscreteTreatmentPolicy, DiscreteInterventionalMean
+export DiscreteTreatmentPolicy, DiscreteInterventionalMean, TwoPartInterventionalMean
 export RepeatedOutcomeMSM, run_repeated_outcome_msm, msm_contrast, identify_repeated_outcomes
 export ParametricRepeatedOutcomeMSM, run_parametric_repeated_msm
 export unstack_repeated_outcomes
 export discrete_recode_policy, discrete_static_policy, discrete_shift_policy
 export apply_discrete_policy, run_discrete_lmtp, run_discrete_lmtp_contrast, discrete_positivity
+export run_two_part_discrete_lmtp, run_two_part_discrete_lmtp_contrast
 export SequentialPolicy, SurvivalPolicy
 export shift_policy_from_settings, estimand_engine, estimand_from_query
 export additive_shift_policy, multiplicative_shift_policy, threshold_shift_policy
@@ -86,6 +90,7 @@ export SuperLearnerFit, NestedSLCandidate, nested_sl_candidate
 export recommend_folds, recommend_learners, recommend_run_options, warn_if_folds_too_large
 export adaptive_learners
 export fit_super_learner, predict_super_learner, design_matrix
+export validate_family_outcome, suggest_family_outcome
 export CovariateSchema, fit_covariate_schema, transform_covariates
 export validate_contrast_learners
 export covariate_design_matrix, outcome_design_matrix
@@ -125,5 +130,7 @@ export mediation_n_mc_sweep, mediation_stability_summary, mediation_stability_ma
 export positivity_report, positivity_markdown, attach_positivity_summary!
 export tipping_point_bias, partial_r2_calibration, sensitivity_report, sensitivity_markdown
 export adjustment_set_disagreement, discovery_adjustment_sensitivity, merge_discovery_sensitivity!
+export IndependenceStatement, local_markov_statements, default_hurdle_label_to_col
+export test_implied_hurdle_independences
 
 end

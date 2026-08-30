@@ -37,10 +37,12 @@ function build_lmtp_fold_cache(
     rng::AbstractRNG;
     learners_outcome = DEFAULT_SL_LEARNERS,
     learners_trt = DEFAULT_SL_LEARNERS,
+    family_outcome::Symbol = :gaussian,
 )
     covariate_schema = fit_covariate_schema(df, covariates)
     outcome_model = fit_outcome_regression(
-        df, outcome, trt, covariates, folds, rng; learners = learners_outcome,
+        df, outcome, trt, covariates, folds, rng;
+        learners = learners_outcome, family = family_outcome,
     )
     exposure_model = fit_exposure_density(
         df, trt, covariates, folds, rng; learners = learners_trt,

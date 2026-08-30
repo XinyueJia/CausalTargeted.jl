@@ -219,6 +219,61 @@ end
     @test abs(res.estimate - truth_effect) < 0.30
 end
 
+@testset "binary presence outcome family_outcome (#34)" begin
+    rng = StableRNG(1)
+    n = 300
+    df = DataFrame(
+        arm = rand(rng, ["R", "SS", "SC"], n),
+        weight = randn(rng, n),
+    )
+    logit_p = @. -1.0 + 0.8 * (df.arm == "SS") + 0.1 * df.weight
+    p = 1.0 ./ (1.0 .+ exp.(-logit_p))
+    df.infected = Float64.(rand(rng, n) .< p)
+    shared = (;
+        arm_hi = "SS",
+        arm_ref = "R",
+        levels = ["R", "SS", "SC"],
+        baseline = [:weight],
+        folds = 3,
+        learners_outcome = (:glm, :mean),
+        rng = StableRNG(2),
+    )
+    res_bin = run_discrete_lmtp_contrast(
+        df, :arm, :infected;
+        family_outcome = :binomial,
+        shared...,
+    )
+    res_gau = run_discrete_lmtp_contrast(
+        df, :arm, :infected;
+        family_outcome = :gaussian,
+        shared...,
+    )
+    @test res_bin.estimate > 0.1
+    @test res_bin.estimate > res_gau.estimate + 0.02
+    @test abs(res_bin.estimate - res_gau.estimate) > 0.02
+
+    df_bad = copy(df)
+    df_bad.infected = rand(rng, n)
+    @test_throws ArgumentError run_discrete_lmtp_contrast(
+        df_bad, :arm, :infected;
+        family_outcome = :binomial,
+        shared...,
+    )
+
+    infected_miss = Vector{Union{Float64, Missing}}(df.infected)
+    infected_miss[1:30] .= missing
+    df_ipcw = copy(df)
+    df_ipcw.infected = infected_miss
+    res_ipcw = run_discrete_lmtp_contrast(
+        df_ipcw, :arm, :infected;
+        family_outcome = :binomial,
+        handle_missing = :ipcw,
+        shared...,
+    )
+    @test isfinite(res_ipcw.estimate)
+    @test res_ipcw.estimate > res_gau.estimate
+end
+
 @testset "discrete LMTP cluster-robust SE" begin
     rng = StableRNG(71)
     n = 80

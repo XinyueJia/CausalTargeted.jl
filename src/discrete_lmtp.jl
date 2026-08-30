@@ -261,6 +261,7 @@ function _shared_fold_discrete_lmtp(
     folds::Int,
     rng;
     learners_outcome = DEFAULT_SL_LEARNERS,
+    family_outcome::Symbol = :gaussian,
     learners_trt = (:logistic, :mean),
     trunc::Real = 10.0,
     mtp::Bool = true,
@@ -299,7 +300,10 @@ function _shared_fold_discrete_lmtp(
         train = df[train_idx, :]
         test = df[test_idx, :]
         Xtr = design_matrix(outcome_schema, train)
-        sl_y = fit_super_learner(Xtr, y[train_idx]; learners = learners_outcome, rng = rng)
+        sl_y = fit_super_learner(
+            Xtr, y[train_idx];
+            learners = learners_outcome, family = family_outcome, rng = rng,
+        )
         Q_obs[test_idx] = predict_super_learner(sl_y, design_matrix(outcome_schema, test))
         test1 = _counterfactual_frame(test, trt, a_policy[test_idx])
         test0 = _counterfactual_frame(test, trt, a_ref[test_idx])
@@ -355,6 +359,7 @@ function run_discrete_lmtp(
     folds::Int = 3,
     rng = StableRNG(1),
     learners_outcome = DEFAULT_SL_LEARNERS,
+    family_outcome::Symbol = :gaussian,
     learners_trt = (:logistic, :mean),
     density_ratio::Symbol = :classification,
     estimator::Symbol = :tmle,
@@ -377,6 +382,7 @@ function run_discrete_lmtp(
     if !isempty(extra_cols)
         baseline = unique(vcat(baseline, extra_cols))
     end
+    validate_family_outcome(data_clean[!, outcome], family_outcome)
     a_raw = collect(data_clean[!, trt])
     a = _factorise_treatment(a_raw)
     analysis = copy(data_clean)
@@ -389,6 +395,7 @@ function run_discrete_lmtp(
     components = _shared_fold_discrete_lmtp(
         analysis, trt, outcome, baseline, a_policy, folds, rng;
         learners_outcome = learners_outcome,
+        family_outcome = family_outcome,
         learners_trt = learners_trt,
         trunc = trunc,
         mtp = policy.mtp,
@@ -448,6 +455,7 @@ function run_discrete_lmtp_contrast(
     folds::Int = 3,
     rng = StableRNG(1),
     learners_outcome = DEFAULT_SL_LEARNERS,
+    family_outcome::Symbol = :gaussian,
     learners_trt = (:logistic, :mean),
     density_ratio::Symbol = :classification,
     estimator::Symbol = :tmle,
@@ -460,7 +468,7 @@ function run_discrete_lmtp_contrast(
     pol_hi = discrete_static_policy(arm_hi; levels = levels_vec)
     pol_ref = discrete_static_policy(arm_ref; levels = levels_vec)
     shared = (;
-        baseline, folds, rng, learners_outcome, learners_trt,
+        baseline, folds, rng, learners_outcome, family_outcome, learners_trt,
         density_ratio, estimator, trunc, epochs, handle_missing, cluster,
     )
     res_hi = run_discrete_lmtp(

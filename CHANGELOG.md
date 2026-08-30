@@ -9,10 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Gaussian MMRM reference path** ([#25](https://github.com/SimonAB/CausalTargeted.jl/issues/25)):
+  `fit_mmrm`, `run_mmrm`, `MMRMResult` in `CausalTargetedMixedModelsExt`.
+  Coverage: `test/test_mmrm.jl`; stress: `docs/stress/mmrm_stress.qmd`.
+- **`family_outcome` on LMTP runners** ([#34](https://github.com/SimonAB/CausalTargeted.jl/issues/34)):
+  binomial outcome nuisances for presence endpoints; `suggest_family_outcome`,
+  `validate_family_outcome`; `recommend_run_options(...; outcome=)`.
+- **Two-part hurdle discrete LMTP** ([#35](https://github.com/SimonAB/CausalTargeted.jl/issues/35)):
+  `TwoPartInterventionalMean`, `run_two_part_discrete_lmtp`,
+  `run_two_part_discrete_lmtp_contrast`; `execute_estimand` engine
+  `:two_part_discrete_lmtp`. Stress: `docs/stress/hurdle_panel_stress.qmd`.
+- **Hurdle-aware conditional independence testing** ([#37](https://github.com/SimonAB/CausalTargeted.jl/issues/37)):
+  `test_implied_hurdle_independences`, `local_markov_statements`,
+  `IndependenceStatement`, `default_hurdle_label_to_col`. Coverage:
+  `test/test_hurdle_ci.jl`.
+- **Outcome routing docs:** [methods.md](docs/src/methods.md) table linking
+  hurdle, MMRM, MSM, NB2 g-comp, and planned count LMTP ([#36](https://github.com/SimonAB/CausalTargeted.jl/issues/36)).
+
 - **`run_discrete_lmtp_contrast`:** static arm contrast (e.g. SS vs R) from two
   discrete LMTP fits ([#28](https://github.com/SimonAB/CausalTargeted.jl/issues/28)).
 - **Apodemus panel stress:** `docs/stress/apodemus_panel_stress.qmd` (synthetic
   default; optional private data via `APODEMUS_CAUSAL_HOME`).
+- **Gaussian MMRM stress:** `docs/stress/mmrm_stress.qmd`.
+- **Hurdle panel stress:** `docs/stress/hurdle_panel_stress.qmd`.
 - Regression tests: three-arm cross-fold fixture ([#31](https://github.com/SimonAB/CausalTargeted.jl/issues/31)),
   `DiscreteTimeCDM` → discrete LMTP recovery ([#33](https://github.com/SimonAB/CausalTargeted.jl/issues/33)).
 

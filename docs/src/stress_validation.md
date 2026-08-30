@@ -23,6 +23,12 @@ unrolling live in CausalDynamics
 ([hierarchy stress](https://github.com/SimonAB/CausalDynamics.jl/blob/main/docs/stress/hierarchy_stress.qmd));
 MSM `cluster=` recovery is covered there and in `test/test_msm.jl`.
 
+**Zero-inflated / hurdle outcomes:** two-part discrete LMTP
+([hurdle panel stress](https://github.com/SimonAB/CausalTargeted.jl/blob/main/docs/stress/hurdle_panel_stress.qmd));
+Gaussian repeated measures
+([MMRM stress](https://github.com/SimonAB/CausalTargeted.jl/blob/main/docs/stress/mmrm_stress.qmd)).
+Outcome routing table in [methods.md](methods.md).
+
 **Julia↔R concordance** (known-truth LMTP / mediation vs `lmtp` / `crumble`)
 remains under `scripts/synthetic_benchmark/` in the same repository. Do not
 promote Super Learner defaults from a single Monte Carlo batch.

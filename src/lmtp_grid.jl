@@ -44,6 +44,7 @@ function run_lmtp_grid(
     shift_scale = mtp_settings().shift_scale,
     learners_outcome = DEFAULT_SL_LEARNERS,
     learners_trt = DEFAULT_SL_LEARNERS,
+    family_outcome::Symbol = :gaussian,
     density_ratio::Symbol = :gaussian,
     estimator::Symbol = :tmle,
     trunc::Real = 10.0,
@@ -72,6 +73,7 @@ function run_lmtp_grid(
             shift_scale = shift_scale,
             learners_outcome = learners_outcome,
             learners_trt = learners_trt,
+            family_outcome = family_outcome,
             density_ratio = density_ratio,
             estimator = estimator,
             trunc = trunc,
@@ -94,6 +96,7 @@ function run_lmtp_grid(
     if !isempty(extra_cols)
         baseline = unique(vcat(baseline, extra_cols))
     end
+    validate_family_outcome(data_clean[!, outcome], family_outcome)
     df = make_analysis_strata(data_clean, stratify_by)
     pooled = stratify_by !== nothing
     adjust = columns_present(df, unique(vcat(baseline, pooled ? [stratify_by] : Symbol[])))
@@ -120,6 +123,7 @@ function run_lmtp_grid(
         df, trt, outcome, adjust, folds, rng;
         learners_outcome = learners_outcome,
         learners_trt = learners_trt,
+        family_outcome = family_outcome,
     ) : nothing
 
     strata = get_target_strata(df)
@@ -137,6 +141,7 @@ function run_lmtp_grid(
             folds, local_rng, fold_cache;
             learners_outcome = learners_outcome,
             learners_trt = learners_trt,
+            family_outcome = family_outcome,
             density_ratio = density_ratio,
             estimator = estimator,
             trunc = trunc,
@@ -267,6 +272,7 @@ function _lmtp_delta_job(
             lmtp_tmle_contrast(
                 df, trt, outcome, adjust, a_shift, nat_ref, folds, rng;
                 learners_outcome = kwargs[:learners_outcome],
+                family_outcome = kwargs[:family_outcome],
                 learners_trt = kwargs[:learners_trt],
                 density_ratio = kwargs[:density_ratio],
                 estimator = kwargs[:estimator],

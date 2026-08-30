@@ -94,6 +94,17 @@ point estimates are unchanged (sampling hierarchy, not BLUP). Synthetic gates:
 `simulate_repeated_outcome_ate`, `simulate_mean_treatment_time_msm`. Generative
 nested ``U`` DGPs live in CausalDynamics (`RandomEffectSpec`).
 
+**Gaussian MMRM (optional MixedModels extension).** For a **static** treatment
+and repeated Gaussian outcomes in long `(id, time, Y)` form, `fit_mmrm` /
+`run_mmrm` fit `outcome ~ treatment * time + baseline + (1 | id)` (default) or
+an `:unstructured` random-effects approximation `(1 + visit | id)` with an
+internal categorical visit factor. [`mixed_g_computation`](@ref) supplies
+visit-specific marginal contrasts (default `random_effects=:zero`). This is a
+**parametric trial-style reference** beside LMTP/MSM, not a substitute for
+discrete longitudinal LMTP. Random **slopes** for `:marginal` g-computation are
+not supported in this release. Requires `using MixedModels`. Stress:
+[`docs/stress/mmrm_stress.qmd`](https://github.com/SimonAB/CausalTargeted.jl/blob/main/docs/stress/mmrm_stress.qmd).
+
 **Transport weights.** `domain_transport_weights` / `transport_weighted_mean` provide
 marginal IPTW-style domain reweighting after a CausalDynamics `TransportQuery`
 certificate. **Decision.** `choose_policy` evaluates labelled `Estimand`s with
@@ -161,7 +172,22 @@ matrices; sl3 `loss_loglik_multinomial`). Categorical *treatments* in LMTP use
 `run_discrete_lmtp` with Díaz–Williams classification density ratios, not a
 multinomial propensity. Arm contrasts (e.g. SS vs R) can use
 `run_discrete_lmtp_contrast`, which fits two static policies and differences
-the estimates (independent SE approximation). Multi-time factor recodes use the same policies on
+the estimates (independent SE approximation). For binary presence outcomes
+(`Y ∈ {0,1}`), pass `family_outcome = :binomial` so outcome nuisances use
+logistic Super Learner fits rather than the default Gaussian location model:
+
+```julia
+run_discrete_lmtp_contrast(
+    df, :arm, :infected;
+    arm_hi = "SS", arm_ref = "R", levels = ["R", "SS", "SC"],
+    baseline = [:weight],
+    family_outcome = :binomial,
+    learners_outcome = (:glm, :mean),
+)
+```
+
+The same `family_outcome` keyword is forwarded by `run_lmtp_grid` and
+`run_discrete_lmtp`. Multi-time factor recodes use the same policies on
 `run_sequential_lmtp`. Optional MLJ / MLP candidates are
 **opt-in**: they can improve recovery on some DGPs in a single synthetic draw while diluting
 others (overfitting vs generalisation). Prefer repeated Monte Carlo and library ablations before
@@ -287,6 +313,72 @@ Rosenbaum (2002) sensitivity models.
 | Discovery as *sensitivity*, not oracle | Pearl (2009); Spirtes et al. (2000) | `discovery_adjustment_sensitivity`, `merge_discovery_sensitivity!` |
 
 **Never** silently replace a user DAG with a discovery graph in production defaults.
+
+## Outcome paths and model choice
+
+Biological and trial endpoints differ in support, time structure, and whether
+zero inflation is scientifically primary. The table below maps common patterns
+to **CausalTargeted** engines. All targeted paths share cross-fitted nuisances,
+optional `handle_missing`, and `cluster=` sandwich SEs where noted. None of these
+replace identification: pair with CausalDynamics certificates and the query
+ladder (association → intervention → counterfactual).
+
+| Outcome pattern | Primary estimand | Engine / API | When to prefer |
+|-----------------|------------------|--------------|----------------|
+| Continuous scalar under static arm | ``E[Y \mid \mathrm{do}(A)]`` | `run_discrete_lmtp` / `run_lmtp_grid` | Single visit or summary outcome |
+| Binary presence ``I(Y>0)`` | Risk difference / probability | `run_discrete_lmtp` + `family_outcome=:binomial` ([#34](https://github.com/SimonAB/CausalTargeted.jl/issues/34)) | Infection, detection, any ``\{0,1\}`` endpoint |
+| Zero-inflated semi-continuous | ``P(Y>0)`` **and** ``E[Y \mid Y>0]`` | `run_two_part_discrete_lmtp_contrast` ([#35](https://github.com/SimonAB/CausalTargeted.jl/issues/35)) | Parasite EPG, shedding scores: presence co-primary |
+| Repeated Gaussian, static treatment | Visit-specific ``τ(t)`` (marginal) | `run_repeated_outcome_msm` (TMLE/IF) | Nonparametric profile + joint ``\\widehat{\\Sigma}`` |
+| Repeated Gaussian, static treatment | LS-mean-style contrast (parametric) | `fit_mmrm` / `run_mmrm` ([#25](https://github.com/SimonAB/CausalTargeted.jl/issues/25); `using MixedModels`) | Trial-style reference beside MSM/LMTP |
+| Repeated count / overdispersion, static treatment | Marginal g-comp on count scale | `mixed_g_computation` (NB2 ext) | Hierarchical reference; not LMTP |
+| Time-varying treatment | Sequential LMTP | `run_sequential_lmtp` | ``A_t`` shifts or factor policies |
+| Count LMTP (marginal mean) | ``E[Y \mid \mathrm{do}(A)]`` on count scale | *Planned* ([#36](https://github.com/SimonAB/CausalTargeted.jl/issues/36)) | Poisson/NB nuisances; two-part often clearer for zeros |
+
+**Two-part hurdle LMTP.** Build `presence` (``I(Y>0)``) and `intensity` (e.g.
+`log(y)` on positives, with `missing` when ``Y=0``). Presence uses binomial
+outcome nuisances; intensity fits on the positive subsample only, so the
+reported contrast is **conditional on observed infection**, not the marginal
+``E[Y \mid \mathrm{do}(A)]`` unless you define a composite estimand separately.
+
+```julia
+res = run_two_part_discrete_lmtp_contrast(
+    df, :grid_type;
+    presence = :fec_bin,
+    intensity = :fec_logpos,
+    arm_hi = "SS", arm_ref = "R", levels = ["R", "SS", "SC"],
+    baseline = [:weight],
+    family_presence = :binomial,
+    cluster = :mouse_id,
+)
+res.presence.estimate    # co-primary: infection risk difference
+res.intensity.estimate   # secondary: log-burden among positives
+```
+
+Use [`suggest_family_outcome`](@ref) or `recommend_run_options(n; outcome=col)`
+to set `family_outcome` for single-outcome runs. For DAG faithfulness on hurdle
+nodes, see the next section; for repeated Gaussian visits, compare MSM (IF) with
+MMRM (parametric) on the same panel before interpreting biology.
+
+## Hurdle CI testing
+
+Zero-inflated biological outcomes are often operationalised as a **two-part
+hurdle**: presence ``I(Y > 0)`` and log intensity among positives. Gaussian
+partial correlation on ``\log(1 + Y)`` is misspecified for faithfulness checks
+on those nodes.
+
+Use partial correlation for continuous block variables. Use
+[`test_implied_hurdle_independences`](@ref) when a statement involves a
+hurdle-split node (binomial presence GLM; Gaussian intensity GLM among
+positives). String / categorical predictors (e.g. `grid_type`) use StatsModels
+`DummyCoding`, aligned with discrete LMTP ([#34](https://github.com/SimonAB/CausalTargeted.jl/issues/34))
+and two-part LMTP ([#35](https://github.com/SimonAB/CausalTargeted.jl/issues/35)).
+
+```julia
+results = test_implied_hurdle_independences(
+    statements, df,
+    Dict(:fec => (:fec_bin, :fec_intensity), :eimeria => (:eimeria_bin, :eimeria_intensity)),
+)
+```
 
 ## Identification certificates (CausalDynamics bridge)
 

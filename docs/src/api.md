@@ -23,6 +23,13 @@ Docstrings on the symbols below also carry `# References` sections.
 - `ParametricRepeatedOutcomeMSM` · `run_parametric_repeated_msm` · `simulate_mean_treatment_time_msm`
 - `build_lmtp_fold_cache`
 
+## Discrete LMTP, hurdle, and MMRM
+
+- `run_discrete_lmtp` · `run_discrete_lmtp_contrast` · `DiscreteTreatmentPolicy`
+- `TwoPartInterventionalMean` · `run_two_part_discrete_lmtp` · `run_two_part_discrete_lmtp_contrast`
+- `fit_mmrm` · `run_mmrm` · `MMRMResult` (requires `using MixedModels`)
+- `suggest_family_outcome` · `validate_family_outcome`
+
 ## Mediation
 
 - `run_mediation_grid` · `run_mediation_scalar`
@@ -72,6 +79,7 @@ baseline types.
 - `plan_mtp` · `summarise_plan` · `execute_estimand` · `estimand_from_query`
 - `identification_certificate` · `certificate_dict`
 - `build_run_metadata` · `attach_run_metadata!`
+- `test_implied_hurdle_independences` · `local_markov_statements` · `IndependenceStatement` · `default_hurdle_label_to_col`
 
 ```@docs
 CausalTargeted

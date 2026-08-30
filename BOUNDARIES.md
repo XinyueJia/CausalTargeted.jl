@@ -28,6 +28,15 @@
   `CausalTargetedMixedModelsExt`): `fit_profiled_nb2`, `mixed_g_computation`
   for static-treatment repeated outcomes. Parametric reference path; not the
   default for LMTP or MSM
+- **Gaussian MMRM reference** (`fit_mmrm`, `run_mmrm`, `MMRMResult`): static
+  treatment × visit Gaussian LMM; see [#25](https://github.com/SimonAB/CausalTargeted.jl/issues/25)
+- **Outcome family plumbing** (`family_outcome` on LMTP runners;
+  `suggest_family_outcome`, `validate_family_outcome`): binomial presence nuisances ([#34](https://github.com/SimonAB/CausalTargeted.jl/issues/34))
+- **Two-part hurdle LMTP** (`TwoPartInterventionalMean`,
+  `run_two_part_discrete_lmtp`, `run_two_part_discrete_lmtp_contrast`): binomial
+  presence + conditional Gaussian intensity ([#35](https://github.com/SimonAB/CausalTargeted.jl/issues/35))
+- **Hurdle-aware CI testing** (`test_implied_hurdle_independences`,
+  `local_markov_statements`): faithfulness checks for zero-inflated nodes ([#37](https://github.com/SimonAB/CausalTargeted.jl/issues/37))
 
 ## CausalMediation.jl
 
