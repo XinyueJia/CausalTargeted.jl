@@ -17,7 +17,14 @@ Optional weakdep: [CausalMediation.jl](https://github.com/SimonAB/CausalMediatio
 | **0.3.8–0.3.9** | Skipped on General (same pattern as 0.3.5) |
 | **0.3.10** | On General ([#165016](https://github.com/JuliaRegistries/General/pull/165016), merged 2026-08-19); TagBot tagged `v0.3.10` — metalearners, discrete LMTP, sequential factor `policies`, `estimand_from_query`, nested eSL-inside-dSL |
 | **0.3.13** | On General — cluster-robust MSM `cluster=` (+ 0.3.11–0.3.12 MSM tips) |
-| **0.3.16** | Tip of `main` — hurdle stack (#34–#37), MMRM (#25); register pending |
+| **0.3.17** | Tip of `main` — `run_estimation_plan`, panel path tests/docs |
+| **0.3.16** | On General ([#166627](https://github.com/JuliaRegistries/General/pull/166627), merged 2026-08-30) |
+
+## 0.3.17 register steps
+
+1. Push tip on `main` — done (`1d106bc`)
+2. `@JuliaRegistrator register` on [issue #3](https://github.com/SimonAB/CausalTargeted.jl/issues/3) — done
+3. General AutoMerge — pending (after CausalDynamics 0.4.3 if compat resolution requires it)
 
 ## 0.3.16 register steps
 
