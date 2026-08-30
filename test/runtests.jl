@@ -54,4 +54,5 @@ const _HAS_PANEL_API = isdefined(CausalDynamics, :simulate_panel)
     @test Base.get_extension(CausalTargeted, :CausalTargetedMixedModelsExt) !== nothing
     include("test_mixedmodels.jl")
     include("test_profiled_nb2.jl")
+    include("test_mmrm.jl")
 end

@@ -68,6 +68,7 @@ include("mediation_compat.jl")
 include("mtp_plotting.jl")
 include("hurdle_ci_tests.jl")
 include("mixedmodels.jl")
+include("mmrm.jl")
 
 export ShiftPolicy, Estimand
 export InterventionalMean, MediationContrast, LongitudinalPolicy, ScalarMediation

@@ -9,10 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Gaussian MMRM reference path** ([#25](https://github.com/SimonAB/CausalTargeted.jl/issues/25)):
+  `fit_mmrm`, `run_mmrm`, `MMRMResult` in `CausalTargetedMixedModelsExt`.
+  Covariance `:random_intercept` (default) or `:unstructured` (categorical visit
+  random effects). Random **slopes** for `:marginal` g-computation deferred.
+  Coverage: `test/test_mmrm.jl`; stress: `docs/stress/mmrm_stress.qmd`.
+
 - **`run_discrete_lmtp_contrast`:** static arm contrast (e.g. SS vs R) from two
   discrete LMTP fits ([#28](https://github.com/SimonAB/CausalTargeted.jl/issues/28)).
 - **Apodemus panel stress:** `docs/stress/apodemus_panel_stress.qmd` (synthetic
   default; optional private data via `APODEMUS_CAUSAL_HOME`).
+- **Gaussian MMRM stress:** `docs/stress/mmrm_stress.qmd` (synthetic trial DGP;
+  `:random_intercept` vs `:unstructured`).
 - Regression tests: three-arm cross-fold fixture ([#31](https://github.com/SimonAB/CausalTargeted.jl/issues/31)),
   `DiscreteTimeCDM` → discrete LMTP recovery ([#33](https://github.com/SimonAB/CausalTargeted.jl/issues/33)).
 

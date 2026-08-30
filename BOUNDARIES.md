@@ -28,6 +28,10 @@
   `CausalTargetedMixedModelsExt`): `fit_profiled_nb2`, `mixed_g_computation`
   for static-treatment repeated outcomes. Parametric reference path; not the
   default for LMTP or MSM
+- **Gaussian MMRM reference** (`fit_mmrm`, `run_mmrm`, `MMRMResult`): static
+  treatment × visit Gaussian LMM with `:random_intercept` or `:unstructured`
+  (random-effects approximation). Wraps `mixed_g_computation` for
+  LS-mean-style contrasts. Random **slopes** deferred ([#25](https://github.com/SimonAB/CausalTargeted.jl/issues/25))
 
 ## CausalMediation.jl
 

@@ -671,5 +671,6 @@ function CausalTargeted.mixed_g_computation(
 end
 
 include("mixedmodels_nb2.jl")
+include("mmrm.jl")
 
 end

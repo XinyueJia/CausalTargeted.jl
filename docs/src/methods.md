@@ -94,6 +94,17 @@ point estimates are unchanged (sampling hierarchy, not BLUP). Synthetic gates:
 `simulate_repeated_outcome_ate`, `simulate_mean_treatment_time_msm`. Generative
 nested ``U`` DGPs live in CausalDynamics (`RandomEffectSpec`).
 
+**Gaussian MMRM (optional MixedModels extension).** For a **static** treatment
+and repeated Gaussian outcomes in long `(id, time, Y)` form, `fit_mmrm` /
+`run_mmrm` fit `outcome ~ treatment * time + baseline + (1 | id)` (default) or
+an `:unstructured` random-effects approximation `(1 + visit | id)` with an
+internal categorical visit factor. [`mixed_g_computation`](@ref) supplies
+visit-specific marginal contrasts (default `random_effects=:zero`). This is a
+**parametric trial-style reference** beside LMTP/MSM, not a substitute for
+discrete longitudinal LMTP. Random **slopes** for `:marginal` g-computation are
+not supported in this release. Requires `using MixedModels`. Stress:
+[`docs/stress/mmrm_stress.qmd`](https://github.com/SimonAB/CausalTargeted.jl/blob/main/docs/stress/mmrm_stress.qmd).
+
 **Transport weights.** `domain_transport_weights` / `transport_weighted_mean` provide
 marginal IPTW-style domain reweighting after a CausalDynamics `TransportQuery`
 certificate. **Decision.** `choose_policy` evaluates labelled `Estimand`s with
