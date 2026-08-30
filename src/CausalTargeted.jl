@@ -62,6 +62,7 @@ include("policy_choice.jl")
 include("id_certificate.jl")
 include("mtp_plan.jl")
 include("mtp_execution.jl")
+include("estimation_plan_bridge.jl")
 include("lmtp_contrast.jl")
 include("synthetic_recovery.jl")
 include("mediation_compat.jl")
@@ -98,6 +99,7 @@ export run_lmtp_grid, run_mediation_grid, run_mediation_scalar, run_mediation_sc
 export run_lmtp_contrast, run_tmle3_nde, run_sequential_lmtp, run_survival_lmtp
 export sequential_identification_certificate, survival_identification_certificate
 export plan_sequential, sequential_spec_from_identification
+export run_estimation_plan
 export domain_transport_weights, transport_weighted_mean
 export PolicyChoice, choose_policy
 export lmtp_tmle_contrast, lmtp_tmle_from_components, apply_shift_policy

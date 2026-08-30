@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.17] - 2026-08-30
+
+### Added
+
+- **`run_estimation_plan`:** execute a CausalDynamics `EstimationPlan` on a wide
+  panel (`:discrete_lmtp`, `:two_part_discrete_lmtp`); pairs with Dynamics panel
+  bridge ([#32](https://github.com/SimonAB/CausalTargeted.jl/issues/32)).
+- **Panel path regression tests:** `test/test_panel_path.jl` — CDM → planner →
+  LMTP recovery and hurdle two-part path ([#33](https://github.com/SimonAB/CausalTargeted.jl/issues/33)).
+- **Panel bridge docs:** [methods.md](docs/src/methods.md) engine handoff table;
+  Apodemus stress uses `run_estimation_plan`.
+
+## [0.3.16] - 2026-08-30
+
 ### Added
 
 - **Gaussian MMRM reference path** ([#25](https://github.com/SimonAB/CausalTargeted.jl/issues/25)):

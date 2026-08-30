@@ -193,6 +193,46 @@ The same `family_outcome` keyword is forwarded by `run_lmtp_grid` and
 others (overfitting vs generalisation). Prefer repeated Monte Carlo and library ablations before
 changing defaults.
 
+## Panel bridge (CausalDynamics → CausalTargeted)
+
+Temporal identification in **CausalDynamics** yields adjustment certificates and
+[`plan_targeted_estimation`](https://simonab.github.io/CausalDynamics.jl/dev/api/identification/#CausalDynamics.plan_targeted_estimation)
+selects a runner symbol and wide column names. **CausalTargeted** executes the
+plan with [`run_estimation_plan`](@ref).
+
+| `EstimationPlan.engine` | Runner | Notes |
+|-------------------------|--------|-------|
+| `:discrete_lmtp` | `run_estimation_plan(...; arm_hi, arm_ref, levels)` | Same-occasion arm contrast; default for static grid designs |
+| `:two_part_discrete_lmtp` | `run_estimation_plan(...; arm_hi, arm_ref, levels)` | Uses `plan.presence_col` / `plan.intensity_col` from `OutcomeKind.hurdle` |
+| `:sequential_lmtp` | `sequential_spec_from_identification` + `run_sequential_lmtp` | Not wrapped by `run_estimation_plan` |
+| `:lmtp_grid` | `run_lmtp_grid` | Continuous shift LMTP; pass `lower_q` / `upper_q`, not `shift` |
+
+```julia
+using CausalDynamics, CausalTargeted, DataFrames
+
+spec = TemporalDAGSpec([:grid_type, :fec], [LaggedEdge(:grid_type, :fec, 0)])
+u = unroll_temporal_dag(spec, 4)
+query = TemporalEffectQuery(:grid_type, :fec, 2, 2)
+plan = plan_targeted_estimation(
+    u, query, names(wide);
+    unit_level = [:grid_type],
+    data = wide,              # optional: sets plan.estimability
+    outcome_specs = Dict(     # optional: hurdle → :two_part_discrete_lmtp
+        :fec => NodeOutcomeSpec(OutcomeKind.hurdle, :fec_bin, :fec_intensity),
+    ),
+)
+res = run_estimation_plan(
+    wide, plan;
+    arm_hi = "SS", arm_ref = "R", levels = ["R", "SS", "SC"],
+    learners_outcome = recommend_run_options(nrow(wide)).learners_outcome,
+)
+```
+
+For dynamical queries (`t_treat < t_outcome` on the same variable), the planner
+selects `:sequential_lmtp` or `:lmtp_grid`; see [`run_lmtp_grid`](@ref) kwargs
+(`lower_q`, `upper_q`, `shift` is not a grid keyword). Stress notebook:
+[`apodemus_panel_stress.qmd`](stress/apodemus_panel_stress.qmd).
+
 ### Super Learner candidate roles
 
 - `:glm`, `:glm_interact`, and `:glm_quad` provide ordinary, interaction-expanded,

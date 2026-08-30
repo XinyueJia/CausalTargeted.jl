@@ -26,6 +26,7 @@ Docstrings on the symbols below also carry `# References` sections.
 ## Discrete LMTP, hurdle, and MMRM
 
 - `run_discrete_lmtp` · `run_discrete_lmtp_contrast` · `DiscreteTreatmentPolicy`
+- `run_estimation_plan` · `run_two_part_discrete_lmtp` · `run_two_part_discrete_lmtp_contrast`
 - `TwoPartInterventionalMean` · `run_two_part_discrete_lmtp` · `run_two_part_discrete_lmtp_contrast`
 - `fit_mmrm` · `run_mmrm` · `MMRMResult` (requires `using MixedModels`)
 - `suggest_family_outcome` · `validate_family_outcome`

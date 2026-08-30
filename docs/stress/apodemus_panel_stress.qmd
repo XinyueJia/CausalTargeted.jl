@@ -112,12 +112,11 @@ sub = dropmissing(wide, [:grid_type, out_col])
 opts = recommend_run_options(nrow(sub); engine = :lmtp)
 rows = NamedTuple[]
 for (arm_hi, arm_ref) in CONTRASTS
-    res = run_discrete_lmtp_contrast(
-        sub, :grid_type, out_col;
+    res = run_estimation_plan(
+        sub, plan;
         arm_hi = arm_hi,
         arm_ref = arm_ref,
         levels = ARMS,
-        baseline = Symbol[],
         folds = opts.folds,
         learners_outcome = opts.learners_outcome,
         learners_trt = (:logistic, :mean),
