@@ -959,6 +959,21 @@ function validate_family_outcome(y::AbstractVector, family::Symbol)
     return nothing
 end
 
+"""
+    suggest_family_outcome(y) -> Symbol
+
+Return `:binomial` when all non-missing values lie in ``\\{0, 1\\}``; otherwise
+`:gaussian`. Use with `recommend_run_options(...; outcome=)` or pass the result
+as `family_outcome` on LMTP runners ([#34](https://github.com/SimonAB/CausalTargeted.jl/issues/34)).
+"""
+function suggest_family_outcome(y::AbstractVector)
+    for v in y
+        ismissing(v) && continue
+        v == 0 || v == 1 || v == 0.0 || v == 1.0 || return :gaussian
+    end
+    return :binomial
+end
+
 """Trim a probability matrix and return its elementwise logits."""
 function _trim_logit_predictions(
     Z::AbstractMatrix{<:Real};

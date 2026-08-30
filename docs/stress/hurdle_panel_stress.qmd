@@ -1,0 +1,118 @@
+---
+title: "Two-part hurdle panel stress (#35)"
+engine: julia
+execute:
+  warning: false
+  daemon: false
+---
+
+## Overview
+
+Local stress check for **two-part hurdle discrete LMTP**
+([#35](https://github.com/SimonAB/CausalTargeted.jl/issues/35)): binomial
+**presence** (co-primary) and Gaussian **intensity | positive** under static
+arm assignment. Uses a synthetic ecology-style panel (three arms, baseline
+weight, repeated units).
+
+This path complements:
+
+- **`family_outcome=:binomial`** on single-outcome discrete LMTP ([#34](https://github.com/SimonAB/CausalTargeted.jl/issues/34))
+- **Hurdle CI testing** for DAG faithfulness ([#37](https://github.com/SimonAB/CausalTargeted.jl/issues/37))
+- **Repeated Gaussian MMRM** for visit trajectories ([#25](https://github.com/SimonAB/CausalTargeted.jl/issues/25))
+- **Repeated-outcome MSM** for unstructured ``τ(t)`` under TMLE/IF
+
+```{julia}
+#| label: chunk-hurdle-stress-env
+#| warning: false
+
+using Pkg
+const PKG_ROOT = normpath(joinpath(@__DIR__, "..", ".."))
+Pkg.activate(joinpath(PKG_ROOT, "docs"))
+Pkg.instantiate()
+```
+
+```{julia}
+#| label: chunk-hurdle-stress-dgp
+#| warning: false
+
+using CausalTargeted
+using DataFrames
+using Distributions
+using StableRNGs
+using Statistics
+
+const ARMS = ["R", "SS", "SC"]
+
+function synthetic_hurdle_panel(;
+    n_units::Int = 120,
+    rng = StableRNG(20260830),
+)
+    rows = NamedTuple[]
+    for unit in 1:n_units
+        arm = rand(rng, ARMS)
+        W = randn(rng)
+        p_inf = arm == "SS" ? 0.62 : arm == "SC" ? 0.42 : 0.28
+        infected = rand(rng, Bernoulli(p_inf))
+        burden = infected ?
+            exp(0.4 + 0.25 * W + (arm == "SS" ? 0.55 : arm == "SC" ? 0.15 : 0.0) + 0.3 * randn(rng)) :
+            0.0
+        push!(rows, (; mouse_id = unit, grid_type = arm, weight = W, fec = burden))
+    end
+    return DataFrame(rows)
+end
+
+function hurdle_columns!(df::DataFrame, raw::Symbol)
+    df[!, Symbol(string(raw, "_bin"))] = Float64.(df[!, raw] .> 0)
+    df[!, Symbol(string(raw, "_logpos"))] = [
+        y > 0 ? log(y) : missing for y in df[!, raw]
+    ]
+    return df
+end
+```
+
+```{julia}
+#| label: chunk-hurdle-stress-estimate
+#| warning: false
+
+df = synthetic_hurdle_panel()
+hurdle_columns!(df, :fec)
+opts = recommend_run_options(nrow(df); engine = :lmtp, outcome = df.fec_bin)
+
+res = run_two_part_discrete_lmtp_contrast(
+    df, :grid_type;
+    presence = :fec_bin,
+    intensity = :fec_logpos,
+    arm_hi = "SS",
+    arm_ref = "R",
+    levels = ARMS,
+    baseline = [:weight],
+    folds = opts.folds,
+    learners_outcome = opts.learners_outcome,
+    family_presence = opts.family_outcome,
+    cluster = :mouse_id,
+    rng = StableRNG(20260831),
+)
+
+@info "Presence contrast" res.presence.estimate res.presence.se
+@info "Intensity | positive" res.intensity.estimate res.intensity.se res.intensity.n
+```
+
+```{julia}
+#| label: chunk-hurdle-stress-summary
+#| warning: false
+
+summary_df = DataFrame(
+    part = ["presence", "intensity"],
+    estimate = [res.presence.estimate, res.intensity.estimate],
+    se = [res.presence.se, res.intensity.se],
+    n = [res.presence.n, res.intensity.n],
+)
+summary_df
+```
+
+## Pass criteria
+
+- Both parts return finite estimates and SEs on the synthetic draw.
+- Presence contrast is **positive** (SS arm shifts infection probability up).
+- Intensity contrast is **positive** among observed positives.
+- `recommend_run_options(...; outcome=fec_bin)` selects `family_outcome = :binomial`.

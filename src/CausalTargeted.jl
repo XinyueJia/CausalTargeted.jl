@@ -90,6 +90,7 @@ export SuperLearnerFit, NestedSLCandidate, nested_sl_candidate
 export recommend_folds, recommend_learners, recommend_run_options, warn_if_folds_too_large
 export adaptive_learners
 export fit_super_learner, predict_super_learner, design_matrix
+export validate_family_outcome, suggest_family_outcome
 export CovariateSchema, fit_covariate_schema, transform_covariates
 export validate_contrast_learners
 export covariate_design_matrix, outcome_design_matrix

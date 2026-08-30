@@ -314,6 +314,51 @@ Rosenbaum (2002) sensitivity models.
 
 **Never** silently replace a user DAG with a discovery graph in production defaults.
 
+## Outcome paths and model choice
+
+Biological and trial endpoints differ in support, time structure, and whether
+zero inflation is scientifically primary. The table below maps common patterns
+to **CausalTargeted** engines. All targeted paths share cross-fitted nuisances,
+optional `handle_missing`, and `cluster=` sandwich SEs where noted. None of these
+replace identification: pair with CausalDynamics certificates and the query
+ladder (association → intervention → counterfactual).
+
+| Outcome pattern | Primary estimand | Engine / API | When to prefer |
+|-----------------|------------------|--------------|----------------|
+| Continuous scalar under static arm | ``E[Y \mid \mathrm{do}(A)]`` | `run_discrete_lmtp` / `run_lmtp_grid` | Single visit or summary outcome |
+| Binary presence ``I(Y>0)`` | Risk difference / probability | `run_discrete_lmtp` + `family_outcome=:binomial` ([#34](https://github.com/SimonAB/CausalTargeted.jl/issues/34)) | Infection, detection, any ``\{0,1\}`` endpoint |
+| Zero-inflated semi-continuous | ``P(Y>0)`` **and** ``E[Y \mid Y>0]`` | `run_two_part_discrete_lmtp_contrast` ([#35](https://github.com/SimonAB/CausalTargeted.jl/issues/35)) | Parasite EPG, shedding scores: presence co-primary |
+| Repeated Gaussian, static treatment | Visit-specific ``τ(t)`` (marginal) | `run_repeated_outcome_msm` (TMLE/IF) | Nonparametric profile + joint ``\\widehat{\\Sigma}`` |
+| Repeated Gaussian, static treatment | LS-mean-style contrast (parametric) | `fit_mmrm` / `run_mmrm` ([#25](https://github.com/SimonAB/CausalTargeted.jl/issues/25); `using MixedModels`) | Trial-style reference beside MSM/LMTP |
+| Repeated count / overdispersion, static treatment | Marginal g-comp on count scale | `mixed_g_computation` (NB2 ext) | Hierarchical reference; not LMTP |
+| Time-varying treatment | Sequential LMTP | `run_sequential_lmtp` | ``A_t`` shifts or factor policies |
+| Count LMTP (marginal mean) | ``E[Y \mid \mathrm{do}(A)]`` on count scale | *Planned* ([#36](https://github.com/SimonAB/CausalTargeted.jl/issues/36)) | Poisson/NB nuisances; two-part often clearer for zeros |
+
+**Two-part hurdle LMTP.** Build `presence` (``I(Y>0)``) and `intensity` (e.g.
+`log(y)` on positives, with `missing` when ``Y=0``). Presence uses binomial
+outcome nuisances; intensity fits on the positive subsample only, so the
+reported contrast is **conditional on observed infection**, not the marginal
+``E[Y \mid \mathrm{do}(A)]`` unless you define a composite estimand separately.
+
+```julia
+res = run_two_part_discrete_lmtp_contrast(
+    df, :grid_type;
+    presence = :fec_bin,
+    intensity = :fec_logpos,
+    arm_hi = "SS", arm_ref = "R", levels = ["R", "SS", "SC"],
+    baseline = [:weight],
+    family_presence = :binomial,
+    cluster = :mouse_id,
+)
+res.presence.estimate    # co-primary: infection risk difference
+res.intensity.estimate   # secondary: log-burden among positives
+```
+
+Use [`suggest_family_outcome`](@ref) or `recommend_run_options(n; outcome=col)`
+to set `family_outcome` for single-outcome runs. For DAG faithfulness on hurdle
+nodes, see the next section; for repeated Gaussian visits, compare MSM (IF) with
+MMRM (parametric) on the same panel before interpreting biology.
+
 ## Hurdle CI testing
 
 Zero-inflated biological outcomes are often operationalised as a **two-part

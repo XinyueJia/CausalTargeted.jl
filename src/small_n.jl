@@ -59,7 +59,8 @@ end
     recommend_run_options(n; engine, n_mediators, rich) -> NamedTuple
 
 Kwargs suitable for `run_lmtp_grid` / `run_mediation_grid` /
-`execute_estimand` under a small-n-first policy.
+`execute_estimand` under a small-n-first policy. Pass `outcome=` (a column
+vector) to add `family_outcome` via [`suggest_family_outcome`](@ref).
 
 | *n* | folds | learners | density_ratio | n_mc (mediation) | parallel |
 |-----|-------|----------|---------------|------------------|----------|
@@ -74,6 +75,7 @@ function recommend_run_options(
     engine::Symbol = :lmtp,
     n_mediators::Integer = 0,
     rich::Bool = false,
+    outcome::Union{Nothing, AbstractVector} = nothing,
 )
     n = Int(n)
     engine = normalize_engine(engine)
@@ -86,7 +88,7 @@ function recommend_run_options(
         32
     end
     positivity = n < 120
-    return (
+    base = (
         folds = folds,
         learners = learners,
         learners_outcome = learners,
@@ -101,6 +103,9 @@ function recommend_run_options(
         positivity = positivity,
         profile = n < 40 ? :small_n : (n < 80 ? :moderate_n : :large_n),
     )
+    outcome === nothing && return base
+    fam = suggest_family_outcome(outcome)
+    return merge(base, (family_outcome = fam,))
 end
 
 """

@@ -20,45 +20,91 @@ using Test
     ]
     df = DataFrame(A = A, W = W, Y_pres = Float64.(pres), Y_int = intensity)
 
-    res = run_two_part_discrete_lmtp_contrast(
-        df, :A;
-        presence = :Y_pres,
-        intensity = :Y_int,
-        arm_hi = "SS",
-        arm_ref = "R",
-        levels = arms,
-        baseline = [:W],
-        folds = 3,
-        learners_outcome = (:glm, :mean),
-        rng = StableRNG(12),
-    )
-    @test isfinite(res.presence.estimate)
-    @test isfinite(res.presence.se)
-    @test res.presence.n == n
-    @test isfinite(res.intensity.estimate)
-    @test isfinite(res.intensity.se)
-    @test res.intensity.n == count(>(0), df.Y_pres)
-    @test res.intensity.conditional_on === :Y_pres
-    @test res.contrast == "SS_vs_R"
+    @testset "arm contrast" begin
+        res = run_two_part_discrete_lmtp_contrast(
+            df, :A;
+            presence = :Y_pres,
+            intensity = :Y_int,
+            arm_hi = "SS",
+            arm_ref = "R",
+            levels = arms,
+            baseline = [:W],
+            folds = 3,
+            learners_outcome = (:glm, :mean),
+            rng = StableRNG(12),
+        )
+        @test isfinite(res.presence.estimate)
+        @test isfinite(res.presence.se)
+        @test res.presence.n == n
+        @test isfinite(res.intensity.estimate)
+        @test isfinite(res.intensity.se)
+        @test res.intensity.n == count(>(0), df.Y_pres)
+        @test res.intensity.conditional_on === :Y_pres
+        @test res.contrast == "SS_vs_R"
+    end
 
-    policy = discrete_static_policy("SS"; levels = arms)
-    single = run_two_part_discrete_lmtp(
-        df, :A;
-        presence = :Y_pres,
-        intensity = :Y_int,
-        policy = policy,
-        baseline = [:W],
-        folds = 3,
-        learners_outcome = (:glm, :mean),
-        rng = StableRNG(13),
-    )
-    @test isfinite(single.presence.estimate)
-    @test isfinite(single.intensity.estimate)
-    @test single.n_intensity == count(>(0), df.Y_pres)
+    @testset "single policy + execute_estimand" begin
+        policy = discrete_static_policy("SS"; levels = arms)
+        single = run_two_part_discrete_lmtp(
+            df, :A;
+            presence = :Y_pres,
+            intensity = :Y_int,
+            policy = policy,
+            baseline = [:W],
+            folds = 3,
+            learners_outcome = (:glm, :mean),
+            rng = StableRNG(13),
+        )
+        @test isfinite(single.presence.estimate)
+        @test isfinite(single.intensity.estimate)
+        @test single.n_intensity == count(>(0), df.Y_pres)
 
-    estimand = TwoPartInterventionalMean(:A, :Y_pres, :Y_int, [:W], policy)
-    @test estimand_engine(estimand) === :two_part_discrete_lmtp
-    grid = execute_estimand(estimand, df; folds = 2, rng = StableRNG(14), metadata = false)
-    @test nrow(grid) == 2
-    @test all(isfinite, grid.est)
+        estimand = TwoPartInterventionalMean(:A, :Y_pres, :Y_int, [:W], policy)
+        @test estimand_engine(estimand) === :two_part_discrete_lmtp
+        grid = execute_estimand(estimand, df; folds = 2, rng = StableRNG(14), metadata = false)
+        @test nrow(grid) == 2
+        @test all(isfinite, grid.est)
+    end
+
+    @testset "synthetic recovery (#35 DGP)" begin
+        rng = StableRNG(7)
+        df = DataFrame(
+            id = repeat(1:100; inner = 3),
+            arm = rand(rng, ["R", "SS"], 300),
+        )
+        logit_p = @. -1.0 + (df.arm == "SS") * 0.6
+        p = 1.0 ./ (1.0 .+ exp.(-logit_p))
+        df.y = zeros(300)
+        for i in 1:300
+            if rand(rng) < p[i]
+                df.y[i] = exp(randn(rng) * 0.5 + (df.arm[i] == "SS") * 0.4)
+            end
+        end
+        df.y_bin = Float64.(df.y .> 0)
+        df.y_log = [y > 0 ? log(y) : missing for y in df.y]
+
+        res = run_two_part_discrete_lmtp_contrast(
+            df, :arm;
+            presence = :y_bin,
+            intensity = :y_log,
+            arm_hi = "SS",
+            arm_ref = "R",
+            levels = ["R", "SS"],
+            baseline = Symbol[],
+            cluster = :id,
+            folds = 3,
+            learners_outcome = (:glm, :mean),
+            rng = StableRNG(8),
+        )
+        @test res.presence.estimate > 0.05
+        @test res.intensity.estimate > 0.05
+        @test res.presence.hi.covariance_kind == :cluster
+    end
+
+    @testset "suggest_family_outcome + recommend_run_options" begin
+        @test suggest_family_outcome([0.0, 1.0, 0.0, 1.0]) === :binomial
+        @test suggest_family_outcome([0.0, 1.0, 0.5]) === :gaussian
+        opts = recommend_run_options(80; outcome = [0.0, 1.0, 0.0, 1.0])
+        @test opts.family_outcome === :binomial
+    end
 end
