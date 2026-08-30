@@ -1,0 +1,106 @@
+---
+title: "Gaussian MMRM stress (issue #25)"
+engine: julia
+execute:
+  warning: false
+  daemon: false
+---
+
+## Overview
+
+Local stress check for the optional **Gaussian MMRM** reference path
+([`fit_mmrm`](https://github.com/SimonAB/CausalTargeted.jl/issues/25)):
+static treatment, repeated visits, marginal g-computation contrast.
+
+This notebook uses a **synthetic trial DGP** with known treatment×time effects.
+It compares `:random_intercept` and `:unstructured` (random-effects) covariance
+structures. Random **slopes** for `:marginal` g-computation remain deferred.
+
+```{julia}
+#| label: chunk-mmrm-stress-env
+#| warning: false
+
+using Pkg
+const PKG_ROOT = normpath(joinpath(@__DIR__, "..", ".."))
+const DOCS_ENV = joinpath(PKG_ROOT, "docs")
+Pkg.activate(DOCS_ENV)
+Pkg.instantiate()
+```
+
+```{julia}
+#| label: chunk-mmrm-stress-setup
+#| warning: false
+
+using CausalTargeted
+using DataFrames
+using MixedModels
+using StableRNGs
+using Statistics
+
+const VISITS = [0.0, 1.0, 2.0, 3.0]
+const β_a = 0.85
+const β_at = 0.45
+
+function synthetic_mmrm_trial(;
+    n_units::Int = 160,
+    rng = StableRNG(20260830),
+)
+    rows = NamedTuple[]
+    for unit in 1:n_units
+        W = randn(rng)
+        A = Float64(W + 0.6randn(rng) > 0)
+        b = 1.1randn(rng)
+        for visit in VISITS
+            Y = 1.2 + β_a * A + 0.25visit + β_at * A * visit + 0.7W + b + 0.35randn(rng)
+            push!(rows, (; id = unit, arm = A, visit, W, Y))
+        end
+    end
+    return DataFrame(rows)
+end
+
+known_effect(visit) = β_a + β_at * visit
+```
+
+```{julia}
+#| label: chunk-mmrm-stress-fit
+#| warning: false
+
+data = synthetic_mmrm_trial()
+common = (;
+    outcome = :Y,
+    treatment = :arm,
+    time = :visit,
+    id = :id,
+    baseline = [:W],
+    values = (0.0, 1.0),
+)
+
+ri = run_mmrm(data; common..., covariance = :random_intercept)
+unstr = run_mmrm(data; common..., covariance = :unstructured)
+
+@info "Random intercept max |bias|" maximum(abs.(ri.contrast.effect .- known_effect.(VISITS)))
+@info "Unstructured max |bias|" maximum(abs.(unstr.contrast.effect .- known_effect.(VISITS)))
+```
+
+```{julia}
+#| label: chunk-mmrm-stress-summary
+#| warning: false
+
+summary_df = DataFrame(
+    covariance = [:random_intercept, :unstructured],
+    max_abs_bias = [
+        maximum(abs.(ri.contrast.effect .- known_effect.(VISITS))),
+        maximum(abs.(unstr.contrast.effect .- known_effect.(VISITS))),
+    ],
+    min_se = [minimum(ri.contrast.se), minimum(unstr.contrast.se)],
+)
+summary_df
+```
+
+## Pass criteria
+
+- Both covariance modes return finite visit-specific contrasts and SEs.
+- Maximum absolute bias vs the known `β_a + β_at * visit` effect is below **0.5**
+  on this synthetic draw (generous; unit tests use a tighter gate on a smaller `n`).
+- `run_mmrm` contrast matches manual `mixed_g_computation` on the fitted model
+  (checked in `test/test_mmrm.jl`).

@@ -66,6 +66,7 @@ include("synthetic_recovery.jl")
 include("mediation_compat.jl")
 include("mtp_plotting.jl")
 include("mixedmodels.jl")
+include("mmrm.jl")
 
 export ShiftPolicy, Estimand
 export InterventionalMean, MediationContrast, LongitudinalPolicy, ScalarMediation
