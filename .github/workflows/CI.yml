@@ -33,8 +33,8 @@ jobs:
         with:
           version: ${{ matrix.version }}
       - uses: julia-actions/cache@v3
-      # MissingnessSpec / IdentificationResult.missingness live on CausalDynamics
-      # main ahead of General 0.4.1; Mediation tip matches the weakdep tests.
+      # CausalDynamics ≥0.4.6 on General (EstimationPlan); Mediation tip matches weakdep tests.
+      # RxInfer + GraphPPL are test extras for unified-stack smoke (#30).
       - name: Test with tip CausalDynamics and CausalMediation
         run: |
           julia --startup-file=no --threads=auto -e '

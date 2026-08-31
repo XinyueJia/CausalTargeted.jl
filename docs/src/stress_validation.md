@@ -14,6 +14,12 @@ small $n$ and RxInfer for larger tables. Capability matrix:
 runs dataset-by-dataset analyses with expected vs actual results, timings, and
 DAGMakie / `plot_mtp_curve` / posterior figures. Fixtures: [`docs/data/`](https://github.com/SimonAB/CausalTargeted.jl/tree/main/docs/data).
 
+**Unified Bayes audit env:** `CausalTargeted` + `CausalDynamics` + `RxInfer` 4+ resolve
+together from General (PrettyTables 2.x via `DataFrames` / MLJ; no owned-package pin).
+The CDCS book `Project.toml` is the reference stack; package `test/` includes an RxInfer
+load + backdoor smoke test ([#30](https://github.com/SimonAB/CausalTargeted.jl/issues/30)).
+See [CausalDynamics RxInfer integration](https://github.com/SimonAB/CausalDynamics.jl/blob/main/docs/src/RXINFER_INTEGRATION.md).
+
 **Canonical harness (data + runners):**
 [SimonAB/causal-dynamics-book](https://github.com/SimonAB/causal-dynamics-book)
 → `scripts/stress_harness/` and `data/catalog.toml`.

@@ -28,9 +28,12 @@ DAGMakie = {url = "https://github.com/SimonAB/DAGMakie.jl.git"}
 [compat]
 CSV = "0.10"
 CairoMakie = "0.13, 0.14, 0.15"
+CausalDynamics = "0.4.6"
 DataFrames = "1"
 Documenter = "1"
+GraphPPL = "4.6"
 Graphs = "1"
+RxInfer = "4, 5"
 MixedModels = "5"
 FastGaussQuadrature = "1"
 NLopt = "0.6, 1"
