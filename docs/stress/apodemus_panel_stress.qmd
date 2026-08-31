@@ -13,8 +13,9 @@ Local stress check for the **Apodemus panel path** epic
 identification → wide columns → discrete LMTP contrasts.
 
 **Privacy:** this notebook never commits study data. Set `APODEMUS_CAUSAL_HOME`
-to your local `Apodemus-superspreaders/Causal_models` checkout; if unset or
-data are missing, a **synthetic** three-arm panel is used instead.
+to your local `Apodemus-superspreaders-CDMs` checkout (or rely on the standard
+`~/Documents/Work/Projects/Apodemus-superspreaders/Apodemus-superspreaders-CDMs`
+path when present); if unset or data are missing, a **synthetic** three-arm panel is used instead.
 
 ```{julia}
 #| label: chunk-apodemus-stress-env
@@ -44,10 +45,25 @@ using DataFrames
 using Random
 using StableRNGs
 using Statistics
+using StatsModels  # direct dep for ApodemusCausal `include` under Quarto
 
-const APODEMUS_HOME = get(ENV, "APODEMUS_CAUSAL_HOME", "")
 const ARMS = ["R", "SS", "SC"]
 const CONTRASTS = [("SS", "R"), ("SC", "R")]
+
+# Local checkout discovery (never commits data; override with APODEMUS_CAUSAL_HOME).
+if !haskey(ENV, "APODEMUS_CAUSAL_HOME")
+    _apodemus_candidates = [
+        expanduser("~/Documents/Work/Projects/Apodemus-superspreaders/Apodemus-superspreaders-CDMs"),
+    ]
+    for _candidate in _apodemus_candidates
+        if isfile(joinpath(_candidate, "src", "ApodemusCausal.jl"))
+            ENV["APODEMUS_CAUSAL_HOME"] = _candidate
+            break
+        end
+    end
+end
+
+const APODEMUS_HOME = get(ENV, "APODEMUS_CAUSAL_HOME", "")
 
 function synthetic_apodemus_wide(n::Int, T::Int, rng)
     arms = rand(rng, ARMS, n)
@@ -68,8 +84,12 @@ function load_apodemus_wide(T::Int; sex::Symbol = :male)
         apodemus_src = joinpath(APODEMUS_HOME, "src", "ApodemusCausal.jl")
         if isfile(apodemus_src)
             try
-                include(apodemus_src)
-                return ApodemusCausal.load_sentinel_wide(T; sex = sex), :private
+                mod = include(apodemus_src)
+                # Julia 1.12 world age: defer binding access until inside invokelatest.
+                wide = Base.invokelatest() do
+                    mod.load_sentinel_wide(T; sex = sex)
+                end
+                return wide, :private
             catch err
                 @warn "Private Apodemus load failed; using synthetic panel" exception = err
             end
