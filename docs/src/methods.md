@@ -141,6 +141,24 @@ bootstrap (redraw rows, recompute cross-fitted $Q$). Set `n_boot = 0` for a
 fast influence-function SE and normal Wald CI. Do not interpret older
 ψ-only bootstrap SEs as sampling uncertainty for the plug-in functional.
 
+**Parametric regression standardisation.** `fit_parametric_gcomp` is a
+formula-based engine separate from the cross-fitted `run_gcomp` estimator. It
+supports Gaussian/identity, binomial/logit, Gamma/log, and negative-binomial/log
+outcome models. `gcomp_mean` averages counterfactual response-scale predictions
+over the empirical target rows; `gcomp_contrast` forms differences, response-
+mean ratios, or log ratios; and `gcomp_interaction` forms joint difference-of-
+differences or ratio-of-ratios contrasts. A target subgroup is restricted before
+the intervention is applied.
+
+The fitted StatsModels formula supplies categorical levels, contrasts, column
+order, and interaction encoding for counterfactual prediction. Changing a
+categorical intervention therefore rebuilds every affected formula term, and an
+unseen level is rejected. Parametric uncertainty uses coefficient HC3 covariance
+and analytic delta-method gradients; ratio intervals are constructed on the log
+scale. `bootstrap_gcomp_interaction` provides an optional refitting bootstrap,
+including resampling within user-specified strata. These inferential procedures
+do not replace or modify the cross-fitted inference used by `run_gcomp`.
+
 This fitted-schema path covers CausalTargeted's g-computation, LMTP Gaussian and
 classification/hybrid density-ratio nuisances, fold caching, sequential LMTP,
 survival LMTP, and missing-data nuisance models. CausalMediation reuses
