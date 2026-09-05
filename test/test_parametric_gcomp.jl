@@ -203,7 +203,7 @@ using GLM
             rand(rng_count, NegativeBinomial(2.3, 2.3 / (2.3 + mu))) for mu in count_means
         ]
         fixed_nb = fit_parametric_gcomp(
-            formula_term, count_data; family = :negativebinomial, theta = 2.3,
+            formula_term, count_data; family = :negbin, theta = 2.3,
         )
         fixed_ratio = gcomp_contrast(
             fixed_nb,
@@ -219,6 +219,51 @@ using GLM
         @test fixed_ratio.estimate ≈
             mean(GLM.predict(fixed_nb.model, hp_count)) / mean(GLM.predict(fixed_nb.model, lp_count))
         @test fixed_nb.theta ≈ 2.3
+        @test fixed_nb.family == :negbin
+        @test !fixed_nb.estimated_theta
+
+        for alias in (:negativebinomial, :negative_binomial, :nb, NegativeBinomial(2.3))
+            alias_fit = fit_parametric_gcomp(
+                formula_term, count_data; family = alias, theta = 2.3,
+            )
+            @test alias_fit.family == :negbin
+            @test coef(alias_fit.model) ≈ coef(fixed_nb.model)
+        end
+
+        estimated_nb = fit_parametric_gcomp(formula_term, count_data; family = :negbin)
+        direct_nb = GLM.negbin(formula_term, count_data, LogLink())
+        @test estimated_nb.family == :negbin
+        @test estimated_nb.estimated_theta
+        @test isfinite(estimated_nb.theta) && estimated_nb.theta > 0
+        @test estimated_nb.theta ≈ direct_nb.model.rr.d.r
+        @test coef(estimated_nb.model) ≈ coef(direct_nb)
+        estimated_mean = gcomp_mean(estimated_nb, count_data; set = (; Protein = "HP"))
+        @test estimated_mean.estimate ≈ mean(GLM.predict(direct_nb, hp_count))
+        @test isfinite(estimated_mean.se) && estimated_mean.se > 0
+
+        # HC3 conditions on fitted theta: fixing theta at the estimated value
+        # gives the same coefficient covariance and delta-method uncertainty.
+        conditioned_nb = fit_parametric_gcomp(
+            formula_term, count_data; family = :negbin, theta = estimated_nb.theta,
+        )
+        @test !conditioned_nb.estimated_theta
+        @test estimated_nb.covariance ≈ conditioned_nb.covariance rtol = 1.0e-5
+        @test estimated_mean.se ≈
+            gcomp_mean(conditioned_nb, count_data; set = (; Protein = "HP")).se rtol = 1.0e-5
+
+        # The refit path, unlike HC3, re-estimates theta when originally estimated.
+        indices = CausalTargeted._gcomp_bootstrap_indices(
+            StableRNG(885), count_data, [:Line, :Protein, :InfectionHistory],
+        )
+        resample = count_data[indices, :]
+        estimated_refit = CausalTargeted._gcomp_refit(estimated_nb, resample)
+        fixed_refit = CausalTargeted._gcomp_refit(fixed_nb, resample)
+        direct_refit = GLM.negbin(formula_term, resample, LogLink())
+        @test estimated_refit.estimated_theta
+        @test estimated_refit.theta ≈ direct_refit.model.rr.d.r
+        @test !isapprox(estimated_refit.theta, estimated_nb.theta; rtol = 1.0e-4)
+        @test !fixed_refit.estimated_theta
+        @test fixed_refit.theta == fixed_nb.theta
     end
 
     @testset "ratio interaction reconciliation and bootstrap strata" begin
@@ -259,6 +304,7 @@ using GLM
         direct = glm(formula_term, data, Normal(), IdentityLink())
         direct_result = gcomp_contrast(
             direct,
+            data,
             data;
             treatment = :Protein,
             reference = "LP",
@@ -273,5 +319,81 @@ using GLM
         )
         @test direct_result.estimate ≈ 0.52 atol = 1.0e-10
         @test run_result.estimate ≈ direct_result.estimate
+
+        # A smaller target with a different covariate distribution and no Y.
+        target = select(data[data.Line .== "ROH", :], Not(:Y))
+        target_mean = gcomp_mean(direct, data, target; set = (; Protein = "HP"))
+        hp_target = copy(target)
+        hp_target.Protein .= "HP"
+        @test target_mean.n == nrow(target) < nrow(data)
+        @test target_mean.estimate ≈ mean(GLM.predict(direct, hp_target))
+        @test target_mean.se ≈ gcomp_mean(fit, target; set = (; Protein = "HP")).se
+        @test !isapprox(target_mean.estimate, gcomp_mean(direct, data, data; set = (; Protein = "HP")).estimate)
+        target_contrast = gcomp_contrast(
+            direct, data, target; treatment = :Protein, reference = "LP", comparison = "HP",
+        )
+        @test target_contrast.estimate ≈ 0.72 atol = 1.0e-10
+        @test target_contrast.n == nrow(target)
+
+        target_both = select(data[data.replicate .<= 3, :], Not(:Y))
+        target_interaction = gcomp_interaction(
+            direct, data, target_both;
+            treatment = :Protein, reference = "LP", comparison = "HP",
+            modifier = :Line, modifier_reference = "ROL", modifier_comparison = "ROH",
+        )
+        @test target_interaction.estimate ≈ 0.40 atol = 1.0e-10
+        @test_throws ArgumentError gcomp_mean(direct, data[1:10, :], target)
+        @test_throws MethodError gcomp_mean(direct, target)
+    end
+
+    @testset "explicit complete-case fitting and target policy" begin
+        for column in (:Y, :Protein), covariance in (:hc3, :model, :none)
+            incomplete = allowmissing(copy(data), column)
+            incomplete[1, column] = missing
+            error = try
+                fit_parametric_gcomp(formula_term, incomplete; covariance)
+                nothing
+            catch caught
+                caught
+            end
+            @test error isa ArgumentError
+            @test occursin("training data must be complete-case", sprint(showerror, error))
+            @test occursin(":$column contains missing", sprint(showerror, error))
+        end
+
+        unrelated = copy(data)
+        unrelated.unused = fill(missing, nrow(data))
+        @test coef(fit_parametric_gcomp(formula_term, unrelated).model) ≈ coef(fit.model)
+        nullable = allowmissing(copy(data))
+        @test coef(fit_parametric_gcomp(formula_term, nullable).model) ≈ coef(fit.model)
+
+        incomplete = allowmissing(copy(data), :Y)
+        incomplete.Y[1] = missing
+        dropped_model = glm(formula_term, incomplete, Normal(), IdentityLink())
+        @test_throws ArgumentError gcomp_mean(dropped_model, incomplete, data)
+        complete = dropmissing(incomplete, :Y)
+        @test isfinite(gcomp_mean(dropped_model, complete, select(data, Not(:Y))).estimate)
+
+        target = allowmissing(select(data, Not(:Y)), :Protein)
+        target.Protein[1] = missing
+        error = try
+            gcomp_mean(fit, target; set = (; Protein = "HP"))
+            nothing
+        catch caught
+            caught
+        end
+        @test error isa ArgumentError
+        @test occursin("target data must be complete-case", sprint(showerror, error))
+        # Subset selection precedes complete-case checks and intervention.
+        @test isfinite(gcomp_mean(fit, target; by = (; Line = "ROH")).estimate)
+        @test_throws ArgumentError gcomp_mean(fit, nullable; set = (; Protein = missing))
+        @test_throws ArgumentError fit_parametric_gcomp(formula_term, select(data, Not(:Protein)))
+        @test_throws ArgumentError gcomp_mean(fit, select(data, Not(:Protein)))
+        @test_throws ArgumentError bootstrap_gcomp_interaction(
+            fit, incomplete;
+            treatment = :Protein, reference = "LP", comparison = "HP",
+            modifier = :Line, modifier_reference = "ROL", modifier_comparison = "ROH",
+            n_boot = 1,
+        )
     end
 end
