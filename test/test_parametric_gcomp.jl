@@ -298,6 +298,33 @@ using GLM
         sort!(original_counts, [:Line, :Protein, :InfectionHistory])
         sort!(resample_counts, [:Line, :Protein, :InfectionHistory])
         @test original_counts.n == resample_counts.n
+
+        @testset "refit bootstrap intervals and replicate counts" begin
+            bootstrap = bootstrap_gcomp_interaction(
+                log_fit,
+                positive_data;
+                treatment = :Protein,
+                reference = "LP",
+                comparison = "HP",
+                modifier = :Line,
+                modifier_reference = "ROL",
+                modifier_comparison = "ROH",
+                scale = :ratio,
+                n_boot = 20,
+                strata = [:Line, :Protein, :InfectionHistory],
+                rng = StableRNG(124),
+            )
+            @test bootstrap.requested_replicates == 20
+            @test bootstrap.successful_replicates == 20
+            @test length(bootstrap.estimates) == bootstrap.successful_replicates
+            @test bootstrap.success_fraction == 1.0
+            @test isempty(bootstrap.failure_reasons)
+            @test all(isfinite, bootstrap.estimates)
+            @test isfinite(bootstrap.se) && bootstrap.se > 0
+            @test 0 < bootstrap.ci_lower < bootstrap.ci_upper < Inf
+            @test bootstrap.ci_lower ≈ quantile(bootstrap.estimates, 0.025)
+            @test bootstrap.ci_upper ≈ quantile(bootstrap.estimates, 0.975)
+        end
     end
 
     @testset "direct formula GLM and convenience runner" begin
