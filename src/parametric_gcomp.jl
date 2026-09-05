@@ -830,6 +830,3 @@ function run_parametric_gcomp(
         fit, data; treatment, reference, comparison, by, subset, scale,
     )
 end
-
-export ParametricGComputationFit, fit_parametric_gcomp, run_parametric_gcomp
-export gcomp_mean, gcomp_contrast, gcomp_interaction, bootstrap_gcomp_interaction
